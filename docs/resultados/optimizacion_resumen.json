@@ -1,0 +1,110 @@
+{
+  "n_trials_por_estudio": 100,
+  "ventanas_rolling": 95,
+  "ventanas_anchored": 95,
+  "trials_totales_train": 416300,
+  "configuraciones_evaluadas_train": 416300,
+  "segundos_cpu_optimizacion_rolling": 4325.178191900253,
+  "segundos_cpu_optimizacion_anchored": 5696.512410163879,
+  "segundos_reloj_etapa_train": 1573.2805778980255,
+  "segundos_reloj_optimizacion": 1573.2711372375488,
+  "variante_elegida": "por_activo",
+  "rebalanceo_elegido": {
+    "frecuencia": "diario",
+    "delta": 0.2
+  },
+  "fallbacks_por_regimen": [
+    {
+      "esquema": "anchored",
+      "variante": "por_activo",
+      "regimen": "Crisis",
+      "sum": 55,
+      "count": 570
+    },
+    {
+      "esquema": "anchored",
+      "variante": "por_activo",
+      "regimen": "Reversión",
+      "sum": 14,
+      "count": 570
+    },
+    {
+      "esquema": "anchored",
+      "variante": "por_activo",
+      "regimen": "Tendencia",
+      "sum": 0,
+      "count": 570
+    },
+    {
+      "esquema": "rolling",
+      "variante": "compartido",
+      "regimen": "Crisis",
+      "sum": 69,
+      "count": 95
+    },
+    {
+      "esquema": "rolling",
+      "variante": "compartido",
+      "regimen": "Reversión",
+      "sum": 68,
+      "count": 95
+    },
+    {
+      "esquema": "rolling",
+      "variante": "compartido",
+      "regimen": "Tendencia",
+      "sum": 72,
+      "count": 95
+    },
+    {
+      "esquema": "rolling",
+      "variante": "por_activo",
+      "regimen": "Crisis",
+      "sum": 368,
+      "count": 570
+    },
+    {
+      "esquema": "rolling",
+      "variante": "por_activo",
+      "regimen": "Reversión",
+      "sum": 348,
+      "count": 570
+    },
+    {
+      "esquema": "rolling",
+      "variante": "por_activo",
+      "regimen": "Tendencia",
+      "sum": 332,
+      "count": 570
+    }
+  ],
+  "fallbacks_globales": [
+    {
+      "esquema": "anchored",
+      "variante": "por_activo",
+      "estudios": 570,
+      "sin_trials_validos": 180,
+      "heredados_ventana_previa": 180,
+      "theta_por_defecto": 0
+    },
+    {
+      "esquema": "rolling",
+      "variante": "compartido",
+      "estudios": 95,
+      "sin_trials_validos": 44,
+      "heredados_ventana_previa": 44,
+      "theta_por_defecto": 0
+    },
+    {
+      "esquema": "rolling",
+      "variante": "por_activo",
+      "estudios": 570,
+      "sin_trials_validos": 169,
+      "heredados_ventana_previa": 169,
+      "theta_por_defecto": 0
+    }
+  ],
+  "n_procesos": 7,
+  "n_min_global": 5,
+  "n_min_regimen": 3
+}

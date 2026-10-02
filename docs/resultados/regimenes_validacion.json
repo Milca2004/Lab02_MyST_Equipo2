@@ -1,0 +1,90 @@
+{
+  "features_usadas": [
+    "volatilidad",
+    "atr_norm",
+    "r2"
+  ],
+  "silhouette_modelo_congelado": 0.4479375226689259,
+  "silhouette_5_features_misma_fecha": 0.31473110456982095,
+  "silhouette_por_ventana": {
+    "media": 0.45810432849494337,
+    "min": 0.37961436804736476,
+    "max": 0.5307010699420485
+  },
+  "objetivo_silhouette": 0.4,
+  "persistencia": [
+    {
+      "regimen": "Tendencia",
+      "proporcion_tiempo": 0.2845528455284553,
+      "n_rachas": 11,
+      "duracion_promedio_obs": 50.90909090909091,
+      "duracion_esperada_markov": 55.89999999999998,
+      "A_jj": 0.9821109123434705
+    },
+    {
+      "regimen": "Reversión",
+      "proporcion_tiempo": 0.3775406504065041,
+      "n_rachas": 10,
+      "duracion_promedio_obs": 74.3,
+      "duracion_esperada_markov": 74.29999999999998,
+      "A_jj": 0.9865410497981157
+    },
+    {
+      "regimen": "Crisis",
+      "proporcion_tiempo": 0.33790650406504064,
+      "n_rachas": 8,
+      "duracion_promedio_obs": 83.125,
+      "duracion_esperada_markov": 83.12499999999986,
+      "A_jj": 0.98796992481203
+    }
+  ],
+  "objetivo_duracion_dias": 10,
+  "matriz_transicion": [
+    [
+      0.9821109123434705,
+      0.012522361359570662,
+      0.005366726296958855
+    ],
+    [
+      0.006729475100942127,
+      0.9865410497981157,
+      0.006729475100942127
+    ],
+    [
+      0.009022556390977444,
+      0.0030075187969924814,
+      0.98796992481203
+    ]
+  ],
+  "centroides_modelo_congelado": [
+    {
+      "volatilidad": 0.028249618682610673,
+      "atr_norm": 0.0451037059643235,
+      "r2": 0.47323426017226733,
+      "regimen": "Crisis"
+    },
+    {
+      "volatilidad": 0.013830102328545087,
+      "atr_norm": 0.026465864743143303,
+      "r2": 0.7314594833919705,
+      "regimen": "Tendencia"
+    },
+    {
+      "volatilidad": 0.017231594213124556,
+      "atr_norm": 0.031190137071947406,
+      "r2": 0.18246439082305654,
+      "regimen": "Reversión"
+    }
+  ],
+  "transiciones": {
+    "n_transiciones": 28,
+    "posiciones_abiertas_afectadas": 34,
+    "cierres_por_cambio_a_crisis": 14,
+    "reglas": [
+      "La posición abierta conserva su SL/TP de entrada.",
+      "Las entradas nuevas usan el θ del régimen nuevo.",
+      "El m nuevo entra en la siguiente revisión de rebalanceo.",
+      "Si el nuevo régimen es Crisis: al open siguiente se cierran las posiciones abiertas con |s| < 1 y el resto se ajusta a m = 0.3 (revisión inmediata)."
+    ]
+  }
+}

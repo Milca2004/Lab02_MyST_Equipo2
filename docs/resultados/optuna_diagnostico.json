@@ -1,0 +1,23 @@
+{
+  "activo": "NVDA",
+  "ventana_k": 94,
+  "train_ini": "2023-11-01",
+  "train_fin": "2024-04-26",
+  "parametros_superficie": [
+    "rsi_window",
+    "m_tp"
+  ],
+  "theta_robusto": {
+    "ema_fast": 18,
+    "ema_gap": 72,
+    "rsi_window": 24,
+    "rsi_lower": 24,
+    "rsi_upper": 80,
+    "bb_window": 12,
+    "bb_k": 1.6691931785392793,
+    "m_sl": 2.9219103774378405,
+    "m_tp": 4.085972543023412,
+    "max_hold": 10
+  },
+  "n_trials_validos": 17
+}

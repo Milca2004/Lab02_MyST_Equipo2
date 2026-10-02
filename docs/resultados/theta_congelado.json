@@ -1,0 +1,272 @@
+{
+  "variante": "por_activo",
+  "ventana_k": 94,
+  "train_ini_ultima_ventana": "2023-11-01",
+  "train_fin_ultima_ventana": "2024-04-26",
+  "thetas": {
+    "NVDA": {
+      "Tendencia": {
+        "ema_fast": 24,
+        "ema_gap": 94,
+        "rsi_window": 27,
+        "rsi_lower": 22,
+        "rsi_upper": 65,
+        "bb_window": 10,
+        "bb_k": 1.5894779053474537,
+        "m_sl": 2.6875828273256843,
+        "m_tp": 5.748974875755656,
+        "max_hold": 10
+      },
+      "Reversión": {
+        "ema_fast": 18,
+        "ema_gap": 72,
+        "rsi_window": 24,
+        "rsi_lower": 24,
+        "rsi_upper": 80,
+        "bb_window": 12,
+        "bb_k": 1.6691931785392793,
+        "m_sl": 2.9219103774378405,
+        "m_tp": 4.085972543023412,
+        "max_hold": 10
+      },
+      "Crisis": {
+        "ema_fast": 18,
+        "ema_gap": 72,
+        "rsi_window": 24,
+        "rsi_lower": 24,
+        "rsi_upper": 80,
+        "bb_window": 12,
+        "bb_k": 1.6691931785392793,
+        "m_sl": 2.9219103774378405,
+        "m_tp": 4.085972543023412,
+        "max_hold": 10
+      }
+    },
+    "AMZN": {
+      "Tendencia": {
+        "ema_fast": 13,
+        "ema_gap": 16,
+        "rsi_window": 26,
+        "rsi_lower": 32,
+        "rsi_upper": 77,
+        "bb_window": 10,
+        "bb_k": 1.625863635609462,
+        "m_sl": 3.1338625421849,
+        "m_tp": 2.4009811999461985,
+        "max_hold": 22
+      },
+      "Reversión": {
+        "ema_fast": 13,
+        "ema_gap": 16,
+        "rsi_window": 26,
+        "rsi_lower": 32,
+        "rsi_upper": 77,
+        "bb_window": 10,
+        "bb_k": 1.625863635609462,
+        "m_sl": 3.1338625421849,
+        "m_tp": 2.4009811999461985,
+        "max_hold": 22
+      },
+      "Crisis": {
+        "ema_fast": 13,
+        "ema_gap": 16,
+        "rsi_window": 26,
+        "rsi_lower": 32,
+        "rsi_upper": 77,
+        "bb_window": 10,
+        "bb_k": 1.625863635609462,
+        "m_sl": 3.1338625421849,
+        "m_tp": 2.4009811999461985,
+        "max_hold": 22
+      }
+    },
+    "TSLA": {
+      "Tendencia": {
+        "ema_fast": 24,
+        "ema_gap": 67,
+        "rsi_window": 20,
+        "rsi_lower": 29,
+        "rsi_upper": 72,
+        "bb_window": 12,
+        "bb_k": 1.6291081353972614,
+        "m_sl": 2.1023078956332695,
+        "m_tp": 2.564515383192741,
+        "max_hold": 16
+      },
+      "Reversión": {
+        "ema_fast": 24,
+        "ema_gap": 67,
+        "rsi_window": 20,
+        "rsi_lower": 29,
+        "rsi_upper": 72,
+        "bb_window": 12,
+        "bb_k": 1.6291081353972614,
+        "m_sl": 2.1023078956332695,
+        "m_tp": 2.564515383192741,
+        "max_hold": 16
+      },
+      "Crisis": {
+        "ema_fast": 24,
+        "ema_gap": 67,
+        "rsi_window": 20,
+        "rsi_lower": 29,
+        "rsi_upper": 72,
+        "bb_window": 12,
+        "bb_k": 1.6291081353972614,
+        "m_sl": 2.1023078956332695,
+        "m_tp": 2.564515383192741,
+        "max_hold": 16
+      }
+    },
+    "META": {
+      "Tendencia": {
+        "ema_fast": 6,
+        "ema_gap": 89,
+        "rsi_window": 22,
+        "rsi_lower": 23,
+        "rsi_upper": 62,
+        "bb_window": 16,
+        "bb_k": 1.6182928114517845,
+        "m_sl": 1.1890925922375264,
+        "m_tp": 4.801365306684547,
+        "max_hold": 38
+      },
+      "Reversión": {
+        "ema_fast": 6,
+        "ema_gap": 89,
+        "rsi_window": 22,
+        "rsi_lower": 23,
+        "rsi_upper": 62,
+        "bb_window": 16,
+        "bb_k": 1.6182928114517845,
+        "m_sl": 1.1890925922375264,
+        "m_tp": 4.801365306684547,
+        "max_hold": 38
+      },
+      "Crisis": {
+        "ema_fast": 6,
+        "ema_gap": 89,
+        "rsi_window": 22,
+        "rsi_lower": 23,
+        "rsi_upper": 62,
+        "bb_window": 16,
+        "bb_k": 1.6182928114517845,
+        "m_sl": 1.1890925922375264,
+        "m_tp": 4.801365306684547,
+        "max_hold": 38
+      }
+    },
+    "NFLX": {
+      "Tendencia": {
+        "ema_fast": 27,
+        "ema_gap": 83,
+        "rsi_window": 9,
+        "rsi_lower": 35,
+        "rsi_upper": 75,
+        "bb_window": 34,
+        "bb_k": 1.6955297577268382,
+        "m_sl": 2.69957903895422,
+        "m_tp": 1.7390870395490308,
+        "max_hold": 20
+      },
+      "Reversión": {
+        "ema_fast": 27,
+        "ema_gap": 83,
+        "rsi_window": 9,
+        "rsi_lower": 35,
+        "rsi_upper": 75,
+        "bb_window": 34,
+        "bb_k": 1.6955297577268382,
+        "m_sl": 2.69957903895422,
+        "m_tp": 1.7390870395490308,
+        "max_hold": 20
+      },
+      "Crisis": {
+        "ema_fast": 27,
+        "ema_gap": 83,
+        "rsi_window": 9,
+        "rsi_lower": 35,
+        "rsi_upper": 75,
+        "bb_window": 34,
+        "bb_k": 1.6955297577268382,
+        "m_sl": 2.69957903895422,
+        "m_tp": 1.7390870395490308,
+        "max_hold": 20
+      }
+    },
+    "GOOGL": {
+      "Tendencia": {
+        "ema_fast": 12,
+        "ema_gap": 24,
+        "rsi_window": 7,
+        "rsi_lower": 38,
+        "rsi_upper": 78,
+        "bb_window": 30,
+        "bb_k": 2.8178613097455867,
+        "m_sl": 1.0649696630122294,
+        "m_tp": 5.8327039932080815,
+        "max_hold": 20
+      },
+      "Reversión": {
+        "ema_fast": 30,
+        "ema_gap": 83,
+        "rsi_window": 12,
+        "rsi_lower": 31,
+        "rsi_upper": 68,
+        "bb_window": 10,
+        "bb_k": 1.8797671915573801,
+        "m_sl": 3.892410496211438,
+        "m_tp": 3.8945972820593964,
+        "max_hold": 6
+      },
+      "Crisis": {
+        "ema_fast": 30,
+        "ema_gap": 83,
+        "rsi_window": 12,
+        "rsi_lower": 31,
+        "rsi_upper": 68,
+        "bb_window": 10,
+        "bb_k": 1.8797671915573801,
+        "m_sl": 3.892410496211438,
+        "m_tp": 3.8945972820593964,
+        "max_hold": 6
+      }
+    }
+  },
+  "m_regimen": {
+    "Tendencia": 1.0,
+    "Reversión": 0.7,
+    "Crisis": 0.3
+  },
+  "rebalanceo": {
+    "frecuencia": "diario",
+    "delta": 0.2
+  },
+  "metodo_pesos": "rp (Spinu)",
+  "estimador_sigma": "muestral",
+  "ventana_cov": 504,
+  "modelo_regimen": {
+    "archivo": "modelo_regimen_congelado.pkl",
+    "sha256": "c6cd208d6bb7fe198063b39c67be3a3faef38a40e85f711e3dd64481f52b6d7f",
+    "features": [
+      "volatilidad",
+      "atr_norm",
+      "r2"
+    ],
+    "mapeo": {
+      "0": "Crisis",
+      "1": "Tendencia",
+      "2": "Reversión"
+    }
+  },
+  "split": {
+    "train_inicio": "2015-01-02",
+    "train_fin": "2024-04-26",
+    "test_inicio": "2024-04-29",
+    "test_fin": "2026-08-31",
+    "n_train": 2345,
+    "n_test": 587,
+    "filas_eliminadas_limpieza": 0,
+    "n_total": 2932
+  }
+}
