@@ -1,5 +1,7 @@
-"""Detección de régimen de mercado con K-means (K = 3) sobre un índice equiponderado.
+"""
 
+
+Detección de régimen de mercado con K-means (K = 3) sobre un índice equiponderado.
 Todo es causal: las features en t usan solo una ventana de 63 días que termina en t, el
 scaler y el K-means se ajustan con datos hasta el fin del train y después solo se predice.
 El régimen se actualiza cada 5 días hábiles y un cambio se confirma únicamente si el nuevo
