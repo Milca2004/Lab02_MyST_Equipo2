@@ -1,7 +1,7 @@
-"""Reporte y presentación generados a partir de docs/resultados/.
+"""Genera el reporte y la presentación a partir de docs/resultados/.
 
-Ninguna cifra se escribe a mano: todas se leen de los CSV/JSON producidos por
-main.py. Donde aún no existe el TEST se deja el marcador [PENDIENTE: test].
+Ninguna cifra se escribe a mano: todo sale de los CSV/JSON que produce main.py. Mientras el
+TEST no exista, esas partes quedan con el marcador [PENDIENTE: test].
 """
 import json
 import re
@@ -20,11 +20,9 @@ from src import config  # noqa: E402
 PENDIENTE = "[PENDIENTE: test]"
 
 
-# ----------------------------------------------------------------------------
-# Lectura de resultados y formato de cifras
-# ----------------------------------------------------------------------------
+# --- Lectura de resultados y formato de cifras
 class Resultados:
-    """Acceso a los archivos de resultados; regresa None si un archivo no existe."""
+    """Lee los archivos de resultados; si un archivo no existe, devuelve None."""
 
     def __init__(self, directorio):
         self.dir = Path(directorio)
@@ -61,7 +59,7 @@ def num(x, dec=2):
 
 
 def tabla_md(df, columnas, encabezados, formatos):
-    """DataFrame -> tabla markdown con formatos por columna."""
+    """Convierte un DataFrame en tabla markdown, con un formato por columna."""
     lineas = ["| " + " | ".join(encabezados) + " |", "|" + "---|" * len(encabezados)]
     for _, fila in df.iterrows():
         celdas = [formatos.get(c, str)(fila[c]) for c in columnas]
@@ -89,11 +87,9 @@ def tabla_metricas(df):
     return tabla_md(df, columnas, [encabezados[c] for c in columnas], FMT_METRICAS)
 
 
-# ----------------------------------------------------------------------------
-# Contenido del reporte
-# ----------------------------------------------------------------------------
+# --- Contenido del reporte
 def construir_reporte(R, figuras_rel):
-    """Regresa el texto markdown del reporte con cifras leídas de R."""
+    """Texto markdown del reporte, con las cifras leídas de R."""
     split = R.json("splits.json")
     congelado = R.json("theta_congelado.json")
     opt = R.json("optimizacion_resumen.json")
@@ -104,8 +100,6 @@ def construir_reporte(R, figuras_rel):
     met_test = R.csv("metricas_test.csv")
     variantes = R.csv("comparacion_variantes.csv")
     auditoria = R.csv("auditoria_datos.csv")
-    hay_test = met_test is not None and lock is not None and not lock.get("ensayo_quick", False) \
-        or (met_test is not None and lock is not None and lock.get("ensayo_quick", False))
 
     def fig(nombre, titulo):
         return f"![{titulo}]({figuras_rel}/{nombre})"
@@ -114,7 +108,6 @@ def construir_reporte(R, figuras_rel):
     ew = met_oos.set_index("nombre").loc["Pesos iguales (EW)"]
     naive = met_oos.set_index("nombre").loc["RP naive"]
     bh = met_oos.set_index("nombre").loc["Buy & Hold EW"]
-    var = variantes.set_index("nombre")
     fila_roll = variantes[(variantes["esquema"] == "rolling") & (variantes["variante"] == congelado["variante"])].iloc[0]
     fila_anc = variantes[variantes["esquema"] == "anchored"].iloc[0]
     un_ind = R.csv("un_indicador.csv")
@@ -126,15 +119,11 @@ def construir_reporte(R, figuras_rel):
     por_reg = R.csv("metricas_por_regimen_wf_oos.csv")
     persist = R.csv("regimen_persistencia_wf_oos.csv")
     corr_reg = R.csv("correlacion_por_regimen.csv")
-    barrido = R.csv("rebalanceo_barrido.csv")
     realistas = R.csv("costos_realistas_train.csv").set_index("caso")
     slip = R.csv("slippage_train.csv")
     corr_sen = R.csv("correlacion_senales.csv")
     port_resumen = R.json("portafolio_resumen_wf_oos.json")
-    ops_reg = R.csv("operaciones_por_regimen_wf_oos.csv")
-    params = R.csv("parametros_por_ventana.csv")
     diag = R.json("optuna_diagnostico.json")
-    ret_anual = R.csv("retornos_anual_wf_oos.csv", index_col=0, parse_dates=True)
 
     # ------------- cifras derivadas (todas de archivos) --------------------
     ew_rc = contrib[contrib["metodo"] == "ew"].set_index("activo")
@@ -152,7 +141,6 @@ def construir_reporte(R, figuras_rel):
     frac_signo = float((np.sign(cambios_20["calmar"]) == np.sign(base_sens)).mean())
     frac_cerca = float(((cambios_20["calmar"] - base_sens).abs() <= 0.5 * abs(base_sens)).mean())
     calmar_min_sens, calmar_max_sens = float(sens_theta["calmar"].min()), float(sens_theta["calmar"].max())
-    caida_media_20 = float((cambios_20["calmar"] - base_sens).mean())
     equilibrio = costos["comision_equilibrio"]
     margen = costos["margen_seguridad"]
     fall = pd.DataFrame(opt["fallbacks_por_regimen"])
@@ -165,7 +153,6 @@ def construir_reporte(R, figuras_rel):
     corr_ema_bb = float(corr_med.loc[("voto_ema", "voto_bb")])
     reg_rp = por_reg[por_reg["nombre"] == "RP (sistema)"]
     sig_reg = reg_rp[~reg_rp["ic_incluye_cero"].astype(bool)]
-    mejor_reb = barrido.loc[barrido["calmar"].idxmax()]
     n_cfg = opt["configuraciones_evaluadas_train"]
     horas = opt["segundos_reloj_etapa_train"] / 3600
     horas_cpu = (opt["segundos_cpu_optimizacion_rolling"] + opt["segundos_cpu_optimizacion_anchored"]) / 3600
@@ -670,9 +657,7 @@ def respuesta_5(reg_rp, sig_reg):
     return filas + ". " + cierre
 
 
-# ----------------------------------------------------------------------------
-# Markdown -> PDF (reportlab)
-# ----------------------------------------------------------------------------
+# --- Markdown -> PDF (reportlab)
 def _registrar_fuente():
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
@@ -694,7 +679,7 @@ def _inline(texto):
 
 
 def markdown_a_pdf(markdown, ruta_pdf, dir_base):
-    """Convierte el markdown simple del reporte a PDF con reportlab."""
+    """Pasa el markdown del reporte a PDF con reportlab."""
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.styles import ParagraphStyle
@@ -770,11 +755,9 @@ def markdown_a_pdf(markdown, ruta_pdf, dir_base):
     doc.build(historia)
 
 
-# ----------------------------------------------------------------------------
-# Presentación (máx. 12 diapositivas + portada + cierre)
-# ----------------------------------------------------------------------------
+# --- Presentación (máx. 12 diapositivas + portada + cierre)
 def construir_diapositivas(R):
-    """Lista de diapositivas: (titulo, viñetas, figura, presentador, segundos)."""
+    """Diapositivas como tuplas (título, viñetas, figura, presentador, segundos)."""
     met_oos = R.csv("metricas_wf_oos.csv").set_index("nombre")
     met_test = R.csv("metricas_test.csv")
     split = R.json("splits.json")
@@ -873,7 +856,7 @@ def construir_presentacion_md(diapositivas, conclusiones):
 
 
 def presentacion_pdf(diapositivas, conclusiones, dir_fig, ruta_pdf):
-    """Diapositivas 16:9 con matplotlib PdfPages: poco texto, fuentes grandes, sin código."""
+    """PDF de diapositivas 16:9 con matplotlib: poco texto y letra grande."""
     with PdfPages(ruta_pdf) as pdf:
         fig = plt.figure(figsize=(13.33, 7.5))
         fig.text(0.5, 0.62, "Estrategias de Trading con Análisis Técnico", ha="center", fontsize=34, weight="bold")
@@ -924,9 +907,8 @@ def conclusiones_cortas(R):
             test]
 
 
-# ----------------------------------------------------------------------------
 def generar_todo(dir_res, dir_fig, dir_docs, quick):
-    """Escribe borradores (.md) y PDFs. En --quick todo va a .cache/quick/."""
+    """Escribe los borradores (.md) y los PDFs. Con --quick todo va a .cache/quick/."""
     R = Resultados(dir_res)
     destino = Path(dir_docs) if dir_docs is not None else Path(dir_res).parent
     destino.mkdir(parents=True, exist_ok=True)
