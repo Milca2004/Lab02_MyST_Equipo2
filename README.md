@@ -7,7 +7,7 @@ Microestructuras y Sistemas de Trading · ITESO · **Nivel de alcance: C**
 | Integrante | Activos | Módulos que revisa y commitea |
 |---|---|---|
 | Milca | NFLX, TSLA | `src/data.py`, `src/signals.py`, `tests/test_causalidad.py`, `tests/test_confirmacion.py` |
-| Paula | AMZN, META | `src/backtest.py`, `src/metrics.py`, `src/optimize.py`, `tests/test_contabilidad.py`, `tests/test_restricciones.py` (incluye sensibilidad y curva de costos) |
+| Paula | AMZN, META | `src/backtest.py`, `src/metrics.py`, `src/optimize.py`, `tests/test_contabilidad.py`, `tests/test_restricciones.py`, `tests/test_metricas.py` (incluye sensibilidad y curva de costos) |
 | Arturo | GOOGL, NVDA | `src/regimes.py`, `src/portfolio.py`, `tests/test_regimen_causal.py`, `tests/test_risk_parity.py` (incluye análisis de rebalanceo) |
 | Los 3 | — | `src/config.py`, `src/plots.py`, `src/report.py`, `main.py`, README, notebook, reporte y presentación |
 
