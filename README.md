@@ -76,6 +76,9 @@ semilla determinística por (ventana, activo, régimen) y K-means y el bootstrap
 - Fecha de descarga: **2026-10-01** (ver `data/download_metadata.json`).
 - Datos congelados en `data/prices_daily.csv` (formato largo). `main.py` nunca descarga si el
   archivo existe.
+- Los precios vienen ajustados por splits y dividendos (`auto_adjust=True`), por eso los valores
+  históricos se ven más bajos que los que se cotizaban en su momento. Se ajustan para que un split
+  no aparezca como una caída falsa en los retornos. Después de la descarga los datos no se modifican.
 
 ## Tiempo de ejecución aproximado
 
@@ -91,7 +94,7 @@ Medido en una Mac con 8 núcleos (7 procesos), con `.cache/` vacío:
 
 ## Fecha de exposición
 
-[FECHA DE EXPOSICIÓN]. El último commit válido es a las 23:59 del día anterior.
+Miércoles 7 de octubre de 2026. El último commit válido es a las 23:59 del martes 6 de octubre.
 
 ## Uso de asistencia de IA
 
