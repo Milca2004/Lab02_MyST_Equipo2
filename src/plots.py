@@ -1,5 +1,5 @@
-"""Figuras (PNG, 150 dpi, en español). Estas funciones SOLO grafican: leen
-tablas ya calculadas por los demás módulos (en docs/resultados/)."""
+"""Figuras (PNG, 150 dpi, en español). Solo grafican: leen las tablas ya calculadas por los
+demás módulos (en docs/resultados/)."""
 import json
 
 import matplotlib
@@ -9,16 +9,21 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 from matplotlib.colors import LinearSegmentedColormap  # noqa: E402
+from matplotlib.patches import Patch  # noqa: E402
 
 from src import config  # noqa: E402
 
-# Paleta categórica validada (orden fijo; nunca se cicla)
+# Paleta categórica (orden fijo, nunca se cicla)
 COLORES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"]
 GRIS = "#52514e"
 COLOR_ACTIVO = {a: COLORES[i] for i, a in enumerate(config.TICKERS)}
 COLOR_REGIMEN = {0: COLORES[0], 1: COLORES[1], 2: COLORES[2]}
 SECUENCIAL = LinearSegmentedColormap.from_list("azul", ["#cde2fb", "#6da7ec", "#256abf", "#0d366b"])
 DIVERGENTE = LinearSegmentedColormap.from_list("div", ["#e34948", "#f0efec", "#2a78d6"])
+
+# Curvas que se comparan en las figuras de valor y drawdown: (color, estilo de línea)
+CURVAS = {"RP (sistema)": (COLORES[0], "-"), "Pesos iguales (EW)": (COLORES[1], "--"),
+          "Buy & Hold EW": (GRIS, ":")}
 
 plt.rcParams.update({
     "font.size": 14, "axes.titlesize": 17, "axes.labelsize": 15, "legend.fontsize": 12,
@@ -37,9 +42,15 @@ def _guardar(fig, dir_fig, nombre):
 
 def _leer(dir_res, nombre, **kw):
     ruta = dir_res / nombre
-    if not ruta.exists():
-        return None
-    return pd.read_csv(ruta, **kw)
+    return pd.read_csv(ruta, **kw) if ruta.exists() else None
+
+
+def _paneles(curvas_oos, curvas_test):
+    """Un panel para TRAIN y, si ya se corrió, otro para TEST."""
+    paneles = [("TRAIN · WF-OOS", curvas_oos)]
+    if curvas_test is not None:
+        paneles.append(("TEST", curvas_test))
+    return paneles
 
 
 def _sombrear_regimenes(ax, regimen):
@@ -47,8 +58,7 @@ def _sombrear_regimenes(ax, regimen):
     regimen = regimen[regimen >= 0]
     if regimen.empty:
         return
-    inicio = regimen.index[0]
-    actual = regimen.iloc[0]
+    inicio, actual = regimen.index[0], regimen.iloc[0]
     for fecha, valor in regimen.iloc[1:].items():
         if valor != actual:
             ax.axvspan(inicio, fecha, color=COLOR_REGIMEN[int(actual)], alpha=0.13, lw=0)
@@ -57,24 +67,17 @@ def _sombrear_regimenes(ax, regimen):
 
 
 def _leyenda_regimenes(ax, loc="upper left"):
-    from matplotlib.patches import Patch
     parches = [Patch(color=COLOR_REGIMEN[j], alpha=0.35, label=config.REGIMENES[j])
                for j in range(3)]
     return ax.legend(handles=parches, loc=loc, title="Régimen")
 
 
-# ----------------------------------------------------------------------------
-# 1–3. Valor, drawdown y rendimientos
-# ----------------------------------------------------------------------------
+# --- 1 a 3: valor, drawdown y rendimientos ------------------------------------
 def fig_valor_portafolio(curvas_oos, curvas_test, dir_fig):
-    columnas = ["RP (sistema)", "Pesos iguales (EW)", "Buy & Hold EW"]
-    estilos = {"RP (sistema)": (COLORES[0], "-"), "Pesos iguales (EW)": (COLORES[1], "--"),
-               "Buy & Hold EW": (GRIS, ":")}
-    paneles = [("TRAIN · WF-OOS", curvas_oos)] + ([("TEST", curvas_test)] if curvas_test is not None else [])
+    paneles = _paneles(curvas_oos, curvas_test)
     fig, ejes = plt.subplots(1, len(paneles), figsize=(8 * len(paneles), 6), squeeze=False)
     for ax, (titulo, curvas) in zip(ejes[0], paneles):
-        for c in columnas:
-            color, estilo = estilos[c]
+        for c, (color, estilo) in CURVAS.items():
             ax.plot(curvas.index, curvas[c] / 1e6, color=color, ls=estilo, label=c)
         ax.set_yscale("log")
         ax.set_title(f"Valor del portafolio — {titulo}")
@@ -85,13 +88,12 @@ def fig_valor_portafolio(curvas_oos, curvas_test, dir_fig):
 
 
 def fig_drawdown(curvas_oos, curvas_test, dir_fig):
-    columnas = ["RP (sistema)", "Pesos iguales (EW)", "Buy & Hold EW"]
-    paneles = [("TRAIN · WF-OOS", curvas_oos)] + ([("TEST", curvas_test)] if curvas_test is not None else [])
+    paneles = _paneles(curvas_oos, curvas_test)
     fig, ejes = plt.subplots(1, len(paneles), figsize=(8 * len(paneles), 5), squeeze=False)
     for ax, (titulo, curvas) in zip(ejes[0], paneles):
-        for k, c in enumerate(columnas):
+        for c, (color, _) in CURVAS.items():
             dd = (curvas[c] - curvas[c].cummax()) / curvas[c].cummax()
-            ax.plot(dd.index, dd * 100, color=[COLORES[0], COLORES[1], GRIS][k], label=c)
+            ax.plot(dd.index, dd * 100, color=color, label=c)
         ax.set_title(f"Drawdown — {titulo}")
         ax.set_xlabel("Fecha")
         ax.set_ylabel("Drawdown (%)")
@@ -101,12 +103,14 @@ def fig_drawdown(curvas_oos, curvas_test, dir_fig):
 
 def fig_rendimientos(mensual, anual, conjunto, dir_fig):
     serie = mensual["RP (sistema)"]
-    tabla = pd.DataFrame({"anio": serie.index.year, "mes": serie.index.month, "r": serie.to_numpy() * 100})
+    tabla = pd.DataFrame({"anio": serie.index.year, "mes": serie.index.month,
+                          "r": serie.to_numpy() * 100})
     matriz = tabla.pivot(index="anio", columns="mes", values="r")
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 0.5 * len(matriz) + 3),
                                    gridspec_kw={"width_ratios": [3, 1.2]})
     limite = max(1e-9, np.nanmax(np.abs(matriz.to_numpy())))
-    imagen = ax1.imshow(matriz.to_numpy(), cmap=DIVERGENTE, vmin=-limite, vmax=limite, aspect="auto")
+    imagen = ax1.imshow(matriz.to_numpy(), cmap=DIVERGENTE, vmin=-limite, vmax=limite,
+                        aspect="auto")
     ax1.set_xticks(range(matriz.shape[1]), [str(m) for m in matriz.columns])
     ax1.set_yticks(range(len(matriz)), [str(a) for a in matriz.index])
     ax1.set_xlabel("Mes")
@@ -119,6 +123,7 @@ def fig_rendimientos(mensual, anual, conjunto, dir_fig):
             if np.isfinite(v):
                 ax1.text(j, i, f"{v:.1f}", ha="center", va="center", fontsize=9, color="#0b0b0b")
     fig.colorbar(imagen, ax=ax1, label="%")
+
     anios = anual.index.year
     ancho = 0.27
     for k, (col, color) in enumerate([("RP (sistema)", COLORES[0]), ("EW", COLORES[1]),
@@ -133,15 +138,13 @@ def fig_rendimientos(mensual, anual, conjunto, dir_fig):
     _guardar(fig, dir_fig, f"03_rendimientos_{conjunto}.png")
 
 
-# ----------------------------------------------------------------------------
-# 4–5. Sensibilidad y costos
-# ----------------------------------------------------------------------------
+# --- 4 y 5: sensibilidad y costos ---------------------------------------------
 def fig_sensibilidad(sens, dir_fig):
     parametros = list(dict.fromkeys(sens["parametro"]))
     columnas = 5
     filas = int(np.ceil(len(parametros) / columnas))
     fig, ejes = plt.subplots(filas, columnas, figsize=(4.2 * columnas, 3.6 * filas), sharey=True)
-    base = sens[(sens["factor"] == 0)]["calmar"].iloc[0]
+    base = sens[sens["factor"] == 0]["calmar"].iloc[0]
     for ax, p in zip(ejes.flat, parametros):
         d = sens[sens["parametro"] == p].sort_values("factor")
         ax.plot(d["factor"] * 100, d["calmar"], marker="o", ms=8, color=COLORES[0])
@@ -176,9 +179,7 @@ def fig_curva_costos(curva, resumen, dir_fig):
     _guardar(fig, dir_fig, "05_curva_costos.png")
 
 
-# ----------------------------------------------------------------------------
-# 6. Régimen
-# ----------------------------------------------------------------------------
+# --- 6: régimen ---------------------------------------------------------------
 def fig_regimenes(serie, curvas_oos, dir_fig):
     regimen = serie["regimen"]
     fig, ax = plt.subplots(figsize=(14, 6))
@@ -239,14 +240,12 @@ def fig_transiciones(eventos, persistencia, dir_fig):
     _guardar(fig, dir_fig, "06d_transiciones.png")
 
 
-# ----------------------------------------------------------------------------
-# 7. Portafolio
-# ----------------------------------------------------------------------------
+# --- 7: portafolio ------------------------------------------------------------
 def fig_contribuciones(promedio, dir_fig):
     fig, ax = plt.subplots(figsize=(12, 6))
     x = np.arange(len(config.TICKERS))
     nombres = {"ew": "Pesos iguales", "naive": "RP naive", "rp": "RP Spinu"}
-    for k, metodo in enumerate(["ew", "naive", "rp"]):
+    for k, metodo in enumerate(nombres):
         d = promedio[promedio["metodo"] == metodo].set_index("activo").loc[config.TICKERS]
         ax.bar(x + (k - 1) * 0.27, d["rc_pct"] * 100, width=0.25, color=COLORES[k],
                label=nombres[metodo])
@@ -300,9 +299,9 @@ def fig_barrido_rebalanceo(barrido, elegido, dir_fig):
                 ("retorno_neto", "Retorno neto (%)"), ("turnover_anual", "Turnover anual (×)")]
     fig, ejes = plt.subplots(1, 4, figsize=(22, 5.5))
     for ax, (col, etiqueta) in zip(ejes, metricas):
+        factor = 1 if col == "turnover_anual" else 100
         for k, f in enumerate(config.FRECUENCIAS_REBALANCEO):
             d = barrido[barrido["frecuencia"] == f]
-            factor = 1 if col == "turnover_anual" else 100
             ax.plot(d["delta"], d[col] * factor, marker="o", ms=8, color=COLORES[k], label=f)
         ax.set_xlabel("Banda δ")
         ax.set_title(etiqueta)
@@ -314,7 +313,8 @@ def fig_barrido_rebalanceo(barrido, elegido, dir_fig):
 
 def fig_pesos_estimadores(pesos, dir_fig):
     estimadores = list(dict.fromkeys(pesos["estimador"]))
-    fig, ejes = plt.subplots(len(estimadores), 1, figsize=(14, 3.6 * len(estimadores)), sharex=True)
+    fig, ejes = plt.subplots(len(estimadores), 1, figsize=(14, 3.6 * len(estimadores)),
+                             sharex=True)
     titulos = {"muestral": "Muestral (504 días, oficial)", "ewma": "EWMA λ = 0.94",
                "ledoit_wolf": "Ledoit-Wolf"}
     for ax, e in zip(ejes, estimadores):
@@ -328,13 +328,11 @@ def fig_pesos_estimadores(pesos, dir_fig):
     _guardar(fig, dir_fig, "08_pesos_estimadores_sigma.png")
 
 
-# ----------------------------------------------------------------------------
-# Adicionales
-# ----------------------------------------------------------------------------
+# --- Adicionales --------------------------------------------------------------
 def fig_un_indicador(tabla, dir_fig):
     port = tabla[tabla["nivel"] == "portafolio"]
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.5))
     colores = [COLORES[0] if c == "2 de 3" else "#86b6ef" for c in port["caso"]]
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.5))
     ax1.bar(port["caso"], port["n_operaciones"], color=colores)
     ax1.set_ylabel("Número de operaciones")
     ax1.set_title("Operaciones (portafolio, WF-OOS)")
@@ -349,7 +347,8 @@ def fig_un_indicador(tabla, dir_fig):
 
 def fig_individuales(curvas, dir_fig, conjunto):
     fig, ax = plt.subplots(figsize=(14, 6.5))
-    ax.plot(curvas.index, curvas["RP (sistema)"] / 1e6, color="#0b0b0b", lw=2.6, label="Portafolio RP")
+    ax.plot(curvas.index, curvas["RP (sistema)"] / 1e6, color="#0b0b0b", lw=2.6,
+            label="Portafolio RP")
     for a in config.TICKERS:
         ax.plot(curvas.index, curvas[f"{a} (estrategia sola)"] / 1e6, color=COLOR_ACTIVO[a],
                 lw=1.4, label=f"{a} sola")
@@ -365,7 +364,8 @@ def fig_costos_vs_bruto(metricas_tabla, dir_fig, conjunto):
     fig, ax = plt.subplots(figsize=(14, 6))
     x = np.arange(len(d))
     ax.bar(x - 0.2, d["pnl_bruto"] / 1e3, width=0.4, color=COLORES[0], label="PnL bruto")
-    ax.bar(x + 0.2, d["costos_totales"] / 1e3, width=0.4, color=COLORES[1], label="Costos totales")
+    ax.bar(x + 0.2, d["costos_totales"] / 1e3, width=0.4, color=COLORES[1],
+           label="Costos totales")
     ax.axhline(0, color=GRIS, lw=1)
     ax.set_xticks(x, [n.replace(" (estrategia sola)", "") for n in d["nombre"]], rotation=20)
     ax.set_ylabel("Miles de USD")
@@ -375,10 +375,9 @@ def fig_costos_vs_bruto(metricas_tabla, dir_fig, conjunto):
 
 
 def fig_rolling_anchored(curvas, dir_fig):
-    columnas = [c for c in curvas.columns if c.startswith("anchored")]
     fig, ax = plt.subplots(figsize=(14, 6))
     ax.plot(curvas.index, curvas["RP (sistema)"] / 1e6, color=COLORES[0], label="Rolling (oficial)")
-    for c in columnas:
+    for c in [c for c in curvas.columns if c.startswith("anchored")]:
         ax.plot(curvas.index, curvas[c] / 1e6, color=COLORES[1], ls="--", label=c.capitalize())
     ax.set_xlabel("Fecha")
     ax.set_ylabel("Valor (millones USD)")
@@ -388,12 +387,11 @@ def fig_rolling_anchored(curvas, dir_fig):
 
 
 def fig_correlacion_senales(corr, dir_fig):
-    media = corr.groupby(["voto_a", "voto_b"])["correlacion"].mean().unstack()
     orden = ["voto_ema", "voto_rsi", "voto_bb"]
-    media = media.loc[orden, orden]
+    media = corr.groupby(["voto_a", "voto_b"])["correlacion"].mean().unstack().loc[orden, orden]
+    nombres = ["EMA", "RSI", "Bollinger"]
     fig, ax = plt.subplots(figsize=(7, 6))
     imagen = ax.imshow(media.to_numpy(), cmap=DIVERGENTE, vmin=-1, vmax=1)
-    nombres = ["EMA", "RSI", "Bollinger"]
     ax.set_xticks(range(3), nombres)
     ax.set_yticks(range(3), nombres)
     ax.grid(False)
@@ -406,8 +404,8 @@ def fig_correlacion_senales(corr, dir_fig):
 
 
 def fig_optuna(trials, importancia, superficie, info, dir_fig):
-    trials = trials.copy()
     validos = trials[trials["value"] > config.OBJETIVO_INVALIDO]
+
     fig, ax = plt.subplots(figsize=(11, 5.5))
     ax.scatter(validos["number"], validos["value"], s=40, color=COLORES[0], label="Trial válido")
     mejor = trials["value"].where(trials["value"] > config.OBJETIVO_INVALIDO).cummax()
@@ -415,7 +413,8 @@ def fig_optuna(trials, importancia, superficie, info, dir_fig):
     ax.axvline(config.N_STARTUP_TRIALS - 0.5, color=GRIS, ls=":", label="Fin de la fase aleatoria")
     ax.set_xlabel("Trial")
     ax.set_ylabel("Calmar (train)")
-    ax.set_title(f"Historia de optimización — {info['activo']}, ventana {info['train_ini']} a {info['train_fin']}")
+    ax.set_title(f"Historia de optimización — {info['activo']}, "
+                 f"ventana {info['train_ini']} a {info['train_fin']}")
     ax.legend()
     _guardar(fig, dir_fig, "14a_optuna_historia.png")
 
@@ -455,19 +454,18 @@ def fig_optuna(trials, importancia, superficie, info, dir_fig):
         plt.close(fig)
 
 
-# ----------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 def generar_todas(dir_res, dir_fig):
     """Genera todas las figuras que tengan sus datos disponibles."""
     curvas_oos = _leer(dir_res, "equity_wf_oos.csv", index_col=0, parse_dates=True)
     curvas_test = _leer(dir_res, "equity_test.csv", index_col=0, parse_dates=True)
     fig_valor_portafolio(curvas_oos, curvas_test, dir_fig)
     fig_drawdown(curvas_oos, curvas_test, dir_fig)
-    for conjunto in ["wf_oos", "test"]:
+    for conjunto, curvas in [("wf_oos", curvas_oos), ("test", curvas_test)]:
         mensual = _leer(dir_res, f"retornos_mensual_{conjunto}.csv", index_col=0, parse_dates=True)
         anual = _leer(dir_res, f"retornos_anual_{conjunto}.csv", index_col=0, parse_dates=True)
         if mensual is not None:
             fig_rendimientos(mensual, anual, conjunto, dir_fig)
-        curvas = curvas_oos if conjunto == "wf_oos" else curvas_test
         if curvas is not None:
             fig_individuales(curvas, dir_fig, conjunto)
         tabla = _leer(dir_res, f"metricas_{conjunto}.csv")
@@ -480,8 +478,7 @@ def generar_todas(dir_res, dir_fig):
     with open(dir_res / "costos_resumen.json", encoding="utf-8") as f:
         fig_curva_costos(_leer(dir_res, "curva_costos.csv"), json.load(f), dir_fig)
     serie = _leer(dir_res, "regimen_serie.csv", index_col=0, parse_dates=True)
-    serie = serie.loc[curvas_oos.index[0]:]
-    fig_regimenes(serie, curvas_oos, dir_fig)
+    fig_regimenes(serie.loc[curvas_oos.index[0]:], curvas_oos, dir_fig)
     fig_transiciones(_leer(dir_res, "eventos_regimen_wf_oos.csv"),
                      _leer(dir_res, "regimen_persistencia_wf_oos.csv"), dir_fig)
     fig_contribuciones(_leer(dir_res, "contribuciones_riesgo_promedio.csv"), dir_fig)
