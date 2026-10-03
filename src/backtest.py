@@ -500,3 +500,134 @@ def datos_un_activo(ohlcv, senales, params, entry_mask=None, cerrar_al_final=Fal
         max_hold=np.full((T, 1), params["max_hold"]),
         entry_mask=mascara, volumen=columna(ohlcv["volume"]),
         cerrar_al_final=cerrar_al_final)
+git apply --ignore-whitespace <<'EOF'
+--- a/src/backtest.py
++++ b/src/backtest.py
+@@ -113,6 +113,20 @@ class Orden:
+ 
+ @dataclass
+ class ResultadoBacktest:
++    """Salida del motor; todas las series están indexadas por fecha.
++
++    equity:            valor del portafolio al cierre (Cash + Σ q_i·P_i).
++    efectivo:          Cash al cierre de cada día.
++    posiciones:        cantidades q_i al cierre (negativas en cortos).
++    pesos:             w_i = q_i·P_i / Equity al cierre.
++    operaciones:       una fila por operación cerrada (entrada, salida, PnL, motivo).
++    costos_diarios:    costos cobrados cada día (comisión + borrow fee).
++    nocional_operado:  Σ|dq·P| operado cada día (base del turnover).
++    rebalanceos:       revisiones que sí dispararon rebalanceo.
++    eventos_regimen:   cambios de régimen y posiciones abiertas en ese momento.
++    conflictos:        señales anuladas por la política de conflictos.
++    exposicion_bruta_max: max_t Σ|q_i·P_i| / Equity al open (≤ 1 sin apalancamiento).
++    """
+     equity: pd.Series
+     efectivo: pd.Series
+     posiciones: pd.DataFrame
+@@ -127,6 +141,7 @@ class ResultadoBacktest:
+ 
+     @property
+     def costos_totales(self):
++        """Suma de todos los costos cobrados durante el backtest."""
+         return float(self.costos_diarios.sum())
+ 
+     @property
+@@ -137,6 +152,7 @@ class ResultadoBacktest:
+ 
+     @property
+     def n_operaciones(self):
++        """Número de operaciones cerradas (entrada + salida cuentan como una)."""
+         return len(self.operaciones)
+ 
+ 
+@@ -144,6 +160,7 @@ class _Motor:
+     """Estado mutable del backtest. Cada método es un paso del día."""
+ 
+     def __init__(self, datos, costos):
++        """Arranca con todo el capital en efectivo, sin posiciones ni órdenes."""
+         self.d = datos
+         self.c = costos
+         T, n = datos.close.shape
+@@ -189,6 +206,12 @@ class _Motor:
+ 
+     # --------------------------------------------------------- abrir / cerrar
+     def _abrir(self, i, t, cantidad, info):
++        """Abre una posición en el activo i al open de t.
++
++        Los niveles quedan fijos al entrar, con d = +1 (largo) o −1 (corto):
++          SL = P_entrada − d·m_sl·ATR      TP = P_entrada + d·m_tp·ATR
++        `cantidad` trae signo (negativa en cortos).
++        """
+         precio_entrada = self.d.open[t, i]
+         direccion = info["direccion"]
+         distancia_sl = info["m_sl"] * info["atr"]
+@@ -203,6 +226,12 @@ class _Motor:
+         self._operar(i, t, cantidad, precio_entrada)
+ 
+     def _cerrar(self, i, t, precio, motivo):
++        """Cierra toda la posición del activo i a `precio` y la registra.
++
++        PnL bruto = flujo acumulado de la posición; PnL neto = bruto − costos.
++        motivo: "SL", "TP", "señal", "time-stop", "cambio de régimen" o
++        "fin de muestra".
++        """
+         posicion = self.pos[i]
+         self._operar(i, t, -posicion.cantidad, precio)
+         self.operaciones.append({
+@@ -302,6 +331,7 @@ class _Motor:
+ 
+     # ------------------------------------------------------ paso 3: cierre
+     def _valor_posiciones(self, precios):
++        """Σ q_i·P_i a los precios dados (los cortos restan porque q_i < 0)."""
+         valor = 0.0
+         for i in range(self.n):
+             if self.pos[i] is not None:
+@@ -309,6 +339,10 @@ class _Motor:
+         return valor
+ 
+     def _cobrar_borrow_fee(self, t):
++        """Cobra el costo diario de préstamo de los cortos: |q|·P_close·fee/252.
++
++        Vale 0 en el escenario oficial; solo aplica en costos realistas.
++        """
+         if self.c.borrow_fee_anual == 0:
+             return
+         for i in range(self.n):
+@@ -320,6 +354,7 @@ class _Motor:
+                 posicion.costos += fee
+ 
+     def _regimen(self, t):
++        """Régimen confirmado al cierre de t (−1 si no hay capa de régimen)."""
+         if self.d.regimen is None:
+             return -1
+         return int(self.d.regimen[t])
+@@ -410,6 +445,12 @@ class _Motor:
+ 
+     # ------------------------------------------------------------- loop
+     def correr(self):
++        """Recorre los días en orden: open → durante el día → cierre.
++
++        En el cierre de t se registra equity, efectivo, posiciones y costos, y
++        se deciden las órdenes del open de t+1 (en el último día no se decide
++        nada). También lleva la exposición bruta máxima al open.
++        """
+         T, n = self.T, self.n
+         equity = np.zeros(T)
+         efectivo = np.zeros(T)
+@@ -448,6 +489,7 @@ class _Motor:
+         return self._empaquetar(equity, efectivo, cantidades, costos, nocional, bruto_max)
+ 
+     def _empaquetar(self, equity, efectivo, cantidades, costos, nocional, bruto_max):
++        """Convierte los arreglos del loop en un ResultadoBacktest con fechas."""
+         fechas, activos = self.d.fechas, self.d.activos
+         equity_s = pd.Series(equity, index=fechas, name="equity")
+         posiciones = pd.DataFrame(cantidades, index=fechas, columns=activos)
+@@ -488,6 +530,7 @@ def datos_un_activo(ohlcv, senales, params, entry_mask=None, cerrar_al_final=Fal
+     T = len(ohlcv)
+ 
+     def columna(x):
++        """Convierte una serie de longitud T en un arreglo (T × 1)."""
+         return np.asarray(x, dtype=float).reshape(T, 1)
+ 
+     mascara = None if entry_mask is None else np.asarray(entry_mask, dtype=bool).reshape(T, 1)
+EOF
