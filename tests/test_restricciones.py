@@ -60,6 +60,46 @@ def test_gap_se_ejecuta_al_open():
     assert op["motivo_salida"] == "SL" and op["precio_salida"] == 95
 
 
+def test_sl_primero_en_corto():
+    # Corto a 100 en el día 1 con ATR 1, m_sl = m_tp = 2 -> SL 102 (arriba), TP 98 (abajo).
+    # Día 2: high 103 y low 97 tocan ambos -> se ejecuta el SL a 102 (pérdida).
+    open_ = [100, 100, 100, 100]
+    high = [101, 101, 103, 101]
+    low = [99, 99, 97, 99]
+    close = [100, 100, 100, 100]
+    res = run_backtest(motor_sintetico(open_, high, low, close, [-1, 0, 0, 0],
+                                       m_sl=2.0, m_tp=2.0))
+    op = res.operaciones.iloc[0]
+    assert op["direccion"] == "corto"
+    assert op["motivo_salida"] == "SL" and op["precio_salida"] == 102
+    assert op["pnl_bruto"] < 0
+
+
+def test_tp_en_corto():
+    # Corto a 100, TP = 98. Día 2: low 97 toca solo el TP -> sale a 98 con ganancia.
+    open_ = [100, 100, 100, 100]
+    high = [101, 101, 101, 101]
+    low = [99, 99, 97, 99]
+    close = [100, 100, 98, 98]
+    res = run_backtest(motor_sintetico(open_, high, low, close, [-1, 0, 0, 0],
+                                       m_sl=2.0, m_tp=2.0))
+    op = res.operaciones.iloc[0]
+    assert op["motivo_salida"] == "TP" and op["precio_salida"] == 98
+    assert op["pnl_bruto"] > 0
+
+
+def test_gap_en_corto_se_ejecuta_al_open():
+    # Corto a 100, SL = 102. El día 2 abre en 105 (arriba del SL): sale a 105, no a 102.
+    open_ = [100, 100, 105, 105]
+    high = [101, 101, 106, 106]
+    low = [99, 99, 104, 104]
+    close = [100, 100, 105, 105]
+    res = run_backtest(motor_sintetico(open_, high, low, close, [-1, 0, 0, 0],
+                                       m_sl=2.0, m_tp=5.0))
+    op = res.operaciones.iloc[0]
+    assert op["motivo_salida"] == "SL" and op["precio_salida"] == 105
+
+
 def test_ejecucion_en_t_mas_1():
     # La señal sale al cierre del día 2; la entrada es al open del día 3 (precio 103).
     open_ = [100, 101, 102, 103, 104, 105]
