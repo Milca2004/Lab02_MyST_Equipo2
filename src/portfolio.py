@@ -1,8 +1,7 @@
 """Portafolio multi-activo: Risk Parity, agregación de señales y rebalanceo.
 
-Sigue la estructura de las notas "Fundamentos Matemáticos de Risk Parity:
-de R_p al Rebalanceo" (Pasos 1–8). Σ siempre se estima sobre RENDIMIENTOS,
-nunca sobre precios (los precios no son estacionarios).
+Sigue las notas "Fundamentos Matemáticos de Risk Parity" (pasos 1 a 8). Σ siempre se
+estima sobre rendimientos, nunca sobre precios.
 """
 import numpy as np
 import pandas as pd
@@ -12,62 +11,50 @@ from sklearn.covariance import LedoitWolf
 from src import config
 
 
-# ----------------------------------------------------------------------------
-# Pasos 1–4: riesgo del portafolio y contribuciones
-# ----------------------------------------------------------------------------
+# --- Pasos 1-4: riesgo del portafolio y contribuciones ------------------------
 def portfolio_vol(w, cov):
-    """Pasos 1–2: σ_p = √(wᵀΣw)."""
+    """σ_p = √(wᵀΣw)."""
     w = np.asarray(w, dtype=float)
     return float(np.sqrt(w @ cov @ w))
 
 
 def marginal_risk_contribution(w, cov):
-    """Paso 3 (regla de la cadena): MRC_k = ∂σ_p/∂w_k = (Σw)_k / σ_p."""
+    """Contribución marginal: MRC_k = (Σw)_k / σ_p."""
     w = np.asarray(w, dtype=float)
     return (cov @ w) / portfolio_vol(w, cov)
 
 
 def risk_contribution(w, cov):
-    """Paso 4: RC_i = w_i·(Σw)_i / σ_p.  Euler: Σ_i RC_i = σ_p (exacto)."""
+    """RC_i = w_i·(Σw)_i / σ_p. Por Euler, la suma de todas es σ_p."""
     w = np.asarray(w, dtype=float)
     return w * marginal_risk_contribution(w, cov)
 
 
 def risk_contribution_pct(w, cov):
-    """RC_i / σ_p: porcentaje genuino del riesgo total (suma 1 por Euler)."""
+    """RC_i / σ_p: porcentaje del riesgo total que aporta cada activo (suma 1)."""
     return risk_contribution(w, cov) / portfolio_vol(w, cov)
 
 
-# ----------------------------------------------------------------------------
-# Paso 5: tres versiones de pesos
-# ----------------------------------------------------------------------------
+# --- Paso 5: tres versiones de pesos ------------------------------------------
 def pesos_iguales(n):
     """EW: w_i = 1/n."""
     return np.full(n, 1.0 / n)
 
 
 def pesos_naive(cov):
-    """RP naive (volatilidad inversa): w_i = (1/σ_i) / Σ_j (1/σ_j).
-
-    Exacto solo si todas las correlaciones por pares son iguales.
-    """
-    sigma = np.sqrt(np.diag(cov))
-    inversa = 1.0 / sigma
+    """RP naive (volatilidad inversa). Solo es exacto si todas las correlaciones son iguales."""
+    inversa = 1.0 / np.sqrt(np.diag(cov))
     return inversa / inversa.sum()
 
 
 def pesos_rp_spinu(cov, tol=config.TOL_RP):
-    """RP por optimización con la formulación convexa de Spinu (2013).
+    """Risk Parity con la formulación convexa de Spinu (2013).
 
-        min_{y>0}  ½ yᵀΣy − (1/n)·Σ_i ln(y_i)     y luego   w = y / Σ_j y_j
+        min_{y>0}  ½ yᵀΣy − (1/n)·Σ ln(y_i),   w = y / Σ y
 
-    En el óptimo, ∇ = Σy − 1/(n·y) = 0  ⇒  y_i(Σy)_i = 1/n para todo i,
-    es decir, contribuciones al riesgo idénticas. Es convexa (cuadrática
-    convexa + barrera logarítmica convexa): solución única.
-    No se minimiza Σ(RC_i − RC_j)² porque ese problema no es convexo.
-
-    Σ se divide entre su diagonal promedio solo para el condicionamiento
-    numérico; los pesos finales no cambian con esa escala.
+    En el óptimo y_i(Σy)_i = 1/n para todo i, o sea contribuciones iguales. Es convexa, así
+    que la solución es única (minimizar Σ(RC_i − RC_j)² no lo sería). Σ se escala por su
+    diagonal promedio solo por condicionamiento numérico; no cambia los pesos.
     """
     n = cov.shape[0]
     cov_escalada = cov / np.mean(np.diag(cov))
@@ -78,13 +65,11 @@ def pesos_rp_spinu(cov, tol=config.TOL_RP):
     def gradiente(y):
         return cov_escalada @ y - 1.0 / (n * y)
 
-    y0 = pesos_naive(cov_escalada)
-    resultado = minimize(objetivo, y0, jac=gradiente, method="L-BFGS-B",
+    resultado = minimize(objetivo, pesos_naive(cov_escalada), jac=gradiente, method="L-BFGS-B",
                          bounds=[(1e-10, None)] * n,
                          options={"ftol": 1e-15, "gtol": 1e-12, "maxiter": 10_000})
     w = resultado.x / resultado.x.sum()
 
-    # Verificación numérica obligatoria en cada cálculo
     error = np.max(np.abs(risk_contribution_pct(w, cov) - 1.0 / n))
     if error >= tol:
         raise ValueError(f"Risk Parity no convergió: max|RC_i/σ_p − 1/n| = {error:.2e}")
@@ -102,19 +87,17 @@ def calcular_pesos(cov, metodo):
     raise ValueError(f"Método de pesos desconocido: {metodo}")
 
 
-# ----------------------------------------------------------------------------
-# Paso 6: estimadores de Σ
-# ----------------------------------------------------------------------------
+# --- Paso 6: estimadores de Σ -------------------------------------------------
 def cov_muestral(rend):
-    """Covarianza muestral S = 1/(T−1)·Σ (r_t − r̄)(r_t − r̄)ᵀ (oficial)."""
+    """Covarianza muestral (el estimador oficial)."""
     return np.cov(rend, rowvar=False, ddof=1)
 
 
 def cov_ewma(rend, lam=config.LAMBDA_EWMA):
     """EWMA (RiskMetrics): Σ_t = λΣ_{t−1} + (1 − λ)·r_t r_tᵀ.
 
-    Se inicia con la covarianza muestral de los primeros 20 días y se recorre
-    la ventana hacia adelante. T_eff = 1/(1 − λ) ≈ 17 días con λ = 0.94.
+    Arranca con la covarianza muestral de los primeros 20 días. Con λ = 0.94 equivale a
+    unos 17 días efectivos.
     """
     sigma = np.cov(rend[:20], rowvar=False, ddof=1)
     for r in rend[20:]:
@@ -123,7 +106,7 @@ def cov_ewma(rend, lam=config.LAMBDA_EWMA):
 
 
 def cov_ledoit_wolf(rend):
-    """Ledoit-Wolf: Σ_shrink = δ*·F + (1 − δ*)·S (sklearn)."""
+    """Ledoit-Wolf: mezcla de la muestral con un objetivo estructurado (sklearn)."""
     return LedoitWolf().fit(rend).covariance_
 
 
@@ -132,62 +115,49 @@ ESTIMADORES = {"muestral": cov_muestral, "ewma": cov_ewma, "ledoit_wolf": cov_le
 
 def serie_pesos(rendimientos, revision, metodo="rp", estimador="muestral",
                 ventana=config.VENTANA_COV):
-    """Pesos de largo plazo w^RP (o EW/naive) vigentes cada día.
+    """Pesos de largo plazo (RP, EW o naive) vigentes cada día.
 
-    En cada fecha de revisión t se estima Σ con los rendimientos de
-    [t − ventana + 1, t] (solo datos ≤ t) y se recalculan los pesos; entre
-    revisiones se mantienen. Al inicio se usa ventana creciente con un mínimo
-    de MIN_DIAS_COV días.
-
-    Regresa (pesos DataFrame T×n, correlaciones array T×n×n, numero_condicion Series).
+    En cada fecha de revisión se estima Σ con la ventana que termina ahí (solo datos hasta
+    t) y se recalculan los pesos; entre revisiones se mantienen. Al inicio la ventana crece
+    hasta tener MIN_DIAS_COV días.
+    Devuelve (pesos T×n, correlaciones T×n×n, número de condición de Σ).
     """
     datos = rendimientos.to_numpy()
     T, n = datos.shape
     pesos = np.full((T, n), np.nan)
     corr = np.full((T, n, n), np.nan)
     condicion = np.full(T, np.nan)
-    w_vigente, corr_vigente, cond_vigente = None, None, np.nan
+    vigente = None  # (pesos, correlación, condición) de la última revisión
     for t in range(T):
-        historia = t  # rendimientos válidos hasta t (el del día 0 es NaN)
-        if revision[t] or (w_vigente is None and historia >= config.MIN_DIAS_COV):
-            if historia >= config.MIN_DIAS_COV:
-                inicio = max(1, t + 1 - ventana)
-                ventana_rend = datos[inicio:t + 1]
-                cov = ESTIMADORES[estimador](ventana_rend)
-                w_vigente = calcular_pesos(cov, metodo)
-                sigma = np.sqrt(np.diag(cov))
-                corr_vigente = cov / np.outer(sigma, sigma)
-                cond_vigente = np.linalg.cond(cov)
-        if w_vigente is not None:
-            pesos[t] = w_vigente
-            corr[t] = corr_vigente
-            condicion[t] = cond_vigente
+        # el rendimiento del día 0 es NaN, así que hay t rendimientos válidos hasta t
+        if t >= config.MIN_DIAS_COV and (revision[t] or vigente is None):
+            cov = ESTIMADORES[estimador](datos[max(1, t + 1 - ventana):t + 1])
+            sigma = np.sqrt(np.diag(cov))
+            vigente = (calcular_pesos(cov, metodo), cov / np.outer(sigma, sigma),
+                       np.linalg.cond(cov))
+        if vigente is not None:
+            pesos[t], corr[t], condicion[t] = vigente
     indice = rendimientos.index
     return (pd.DataFrame(pesos, index=indice, columns=rendimientos.columns),
             corr, pd.Series(condicion, index=indice))
 
 
-# ----------------------------------------------------------------------------
-# Paso 7: agregación de señales
-# ----------------------------------------------------------------------------
+# --- Paso 7: agregación de señales --------------------------------------------
 def resolver_conflictos(s, corr, umbral=config.UMBRAL_CORR_CONFLICTO):
-    """Política de conflictos entre activos correlacionados.
+    """Política para señales opuestas en activos muy correlacionados.
 
-    Si corr(i, j) > umbral y s_i, s_j tienen signo opuesto: se queda el de
-    mayor |s| y el otro va a 0; si empatan, ambos se multiplican por 0.5.
-    Las decisiones se toman con los s originales (no depende del orden).
-    Regresa (s_ajustada, numero_de_conflictos).
+    Si corr(i, j) > umbral y s_i, s_j tienen signo contrario, se queda la de mayor |s| y la
+    otra pasa a 0; si empatan, ambas se reducen a la mitad. Todo se decide con las señales
+    originales, así que no depende del orden. Devuelve (señales ajustadas, # de conflictos).
     """
     s = np.asarray(s, dtype=float)
     if corr is None:
         return s.copy(), 0
-    n = len(s)
     anular, mitad = set(), set()
     conflictos = 0
-    for i in range(n):
-        for j in range(i + 1, n):
-            opuestos = s[i] * s[j] < 0
-            if opuestos and corr[i, j] > umbral:
+    for i in range(len(s)):
+        for j in range(i + 1, len(s)):
+            if s[i] * s[j] < 0 and corr[i, j] > umbral:
                 conflictos += 1
                 if abs(s[i]) > abs(s[j]):
                     anular.add(j)
@@ -204,68 +174,53 @@ def resolver_conflictos(s, corr, umbral=config.UMBRAL_CORR_CONFLICTO):
 
 
 def pesos_objetivo(w_rp, s, m, corr=None, umbral=config.UMBRAL_CORR_CONFLICTO):
-    """Paso 7: composición de pesos de largo plazo con señales.
+    """Combina los pesos de largo plazo con las señales.
 
-        w̃_i = w_i^RP · s_i
-        w^target = m(régimen) · w̃ / max(1, Σ_i |w̃_i|)
+        w̃ = w^RP · s        w^target = m(régimen) · w̃ / max(1, Σ|w̃|)
 
-    max(1, Σ|w̃|) garantiza que nunca haya apalancamiento.
-    Regresa (w_target, numero_de_conflictos).
+    El max(1, ·) evita el apalancamiento. Devuelve (w_target, # de conflictos).
     """
     s_ajustada, conflictos = resolver_conflictos(s, corr, umbral)
     w_tilde = np.asarray(w_rp, dtype=float) * s_ajustada
-    bruto = np.sum(np.abs(w_tilde))
-    w_target = m * w_tilde / max(1.0, bruto)
-    return w_target, conflictos
+    return m * w_tilde / max(1.0, np.sum(np.abs(w_tilde))), conflictos
 
 
-# ----------------------------------------------------------------------------
-# Paso 8: rebalanceo y turnover
-# ----------------------------------------------------------------------------
+# --- Paso 8: rebalanceo y turnover --------------------------------------------
 def pesos_despues_drift(w, rend):
-    """Peso justo antes de rebalancear (después del movimiento de precios).
-
-    w_{i,t⁻} = w_i(1 + r_i) / Σ_j w_j(1 + r_j)
-    (se supone que todo el capital está invertido en los activos)
-    """
-    w = np.asarray(w, dtype=float)
-    valor = w * (1.0 + np.asarray(rend, dtype=float))
+    """Pesos justo antes de rebalancear, tras el movimiento de precios del día."""
+    valor = np.asarray(w, dtype=float) * (1.0 + np.asarray(rend, dtype=float))
     return valor / valor.sum()
 
 
 def turnover(w_nuevo, w_antes):
-    """T_t = ½·Σ_i |w_{i,t} − w_{i,t⁻}|, con w_{t⁻} el peso post-drift."""
+    """T = ½·Σ|w_nuevo − w_antes|, con w_antes el peso después del drift."""
     return 0.5 * float(np.sum(np.abs(np.asarray(w_nuevo) - np.asarray(w_antes))))
 
 
 def costo_anualizado(turnover_promedio, rebalanceos_por_anio, comision=config.COMISION):
-    """cost_ann ≈ T̄ × f × 2c."""
+    """Costo anual aproximado: T̄ × f × 2c."""
     return turnover_promedio * rebalanceos_por_anio * 2.0 * comision
 
 
 def fechas_revision(n_dias, cada):
-    """Fechas de revisión del calendario: cada `cada` días sobre el índice global."""
+    """Máscara de revisión: True cada `cada` días sobre el calendario global."""
     revision = np.zeros(n_dias, dtype=bool)
     revision[::cada] = True
     return revision
 
 
-# ----------------------------------------------------------------------------
-# Simulación del portafolio (une señales, régimen, pesos y el motor)
-# ----------------------------------------------------------------------------
+# --- Simulación del portafolio (señales, régimen, pesos y motor) --------------
 def construir_senales(panel, regimen, horario_theta, fechas_sim, umbral=None, indicadores=None):
     """Arreglos (T × n) de señal y parámetros vigentes para la simulación.
 
-    horario_theta: lista de (desde, hasta, thetas) con thetas[activo][régimen] = θ.
-    En el día t se usa el θ del régimen confirmado en t (θ del régimen nuevo
-    para entradas nuevas). Las señales se calculan con datos ≤ `hasta`
-    (causales: el valor en t solo usa datos ≤ t).
+    horario_theta: lista de (desde, hasta, thetas) con thetas[activo][régimen] = θ. Cada día
+    se usa el θ del régimen confirmado ese día. Las señales son causales: usan datos hasta
+    `hasta`, y el valor en t solo depende de datos hasta t.
     """
     from src.data import asset_frame
-    from src.signals import generate_signals
+    from src.signals import atr, generate_signals
 
-    if umbral is None:
-        umbral = config.UMBRAL_CONFIRMACION
+    umbral = config.UMBRAL_CONFIRMACION if umbral is None else umbral
     T, n = len(fechas_sim), len(config.TICKERS)
     arreglos = {nombre: np.zeros((T, n)) for nombre in ["s", "m_sl", "m_tp", "max_hold"]}
     arreglos["max_hold"][:] = 1
@@ -281,37 +236,29 @@ def construir_senales(panel, regimen, horario_theta, fechas_sim, umbral=None, in
                 if not dias.any():
                     continue
                 theta = thetas[activo][j]
-                senal = generate_signals(ohlcv, theta, umbral, indicadores)
-                senal = senal["s"].reindex(fechas_sim).fillna(0.0).to_numpy()
-                arreglos["s"][dias, i] = senal[dias]
-                arreglos["m_sl"][dias, i] = theta["m_sl"]
-                arreglos["m_tp"][dias, i] = theta["m_tp"]
-                arreglos["max_hold"][dias, i] = theta["max_hold"]
-    atr = pd.DataFrame({a: _atr_activo(panel, a) for a in config.TICKERS})
-    arreglos["atr"] = atr.reindex(fechas_sim).to_numpy()
+                senal = generate_signals(ohlcv, theta, umbral, indicadores)["s"]
+                arreglos["s"][dias, i] = senal.reindex(fechas_sim).fillna(0.0).to_numpy()[dias]
+                for clave in ["m_sl", "m_tp", "max_hold"]:
+                    arreglos[clave][dias, i] = theta[clave]
+    arreglos["atr"] = pd.DataFrame(
+        {a: atr(panel["high"][a], panel["low"][a], panel["close"][a])
+         for a in config.TICKERS}).reindex(fechas_sim).to_numpy()
     return arreglos
-
-
-def _atr_activo(panel, activo):
-    from src.signals import atr
-    return atr(panel["high"][activo], panel["low"][activo], panel["close"][activo])
 
 
 def simular_portafolio(panel, senales, regimen, pesos_largo_plazo, fechas_sim,
                        frecuencia=config.FRECUENCIA_DEFAULT, delta=config.DELTA_DEFAULT,
                        costos=None, m_regimen=None, usar_regimen=True, cerrar_al_final=False):
-    """Corre el motor para el portafolio de 6 activos en `fechas_sim`.
+    """Corre el motor con los activos del portafolio sobre `fechas_sim`.
 
-    pesos_largo_plazo: salida de serie_pesos (pesos, correlaciones, condición)
-    calculada sobre TODO el calendario (cada fila usa solo datos ≤ t).
+    pesos_largo_plazo es la salida de serie_pesos, calculada sobre todo el calendario
+    (cada fila solo usa datos hasta t).
     """
     from src.backtest import DatosMotor, run_backtest
 
-    todas = panel["close"].index
-    posicion = todas.get_indexer(fechas_sim)
+    posicion = panel["close"].index.get_indexer(fechas_sim)
     pesos, corr = pesos_largo_plazo[0], pesos_largo_plazo[1]
     cada = config.FRECUENCIAS_REBALANCEO[frecuencia]
-    revision = (posicion % cada) == 0                  # rejilla del calendario global
     datos = DatosMotor(
         fechas=fechas_sim, activos=list(config.TICKERS),
         open=panel["open"].loc[fechas_sim].to_numpy(),
@@ -323,13 +270,13 @@ def simular_portafolio(panel, senales, regimen, pesos_largo_plazo, fechas_sim,
         max_hold=senales["max_hold"],
         regimen=regimen.reindex(fechas_sim).to_numpy() if usar_regimen else None,
         w_rp=pesos.loc[fechas_sim].to_numpy(), corr=corr[posicion],
-        revision=revision, delta=delta, m_regimen=m_regimen,
-        cerrar_al_final=cerrar_al_final)
+        revision=(posicion % cada) == 0,  # rejilla del calendario global
+        delta=delta, m_regimen=m_regimen, cerrar_al_final=cerrar_al_final)
     return run_backtest(datos, costos)
 
 
 def simular_activo_individual(panel, senales, i, fechas_sim, costos=None):
-    """Estrategia de un solo activo con el 100% del capital (n = 1, peso 1)."""
+    """Estrategia de un solo activo con el 100% del capital."""
     from src.backtest import DatosMotor, run_backtest
 
     activo = config.TICKERS[i]
@@ -346,21 +293,19 @@ def simular_activo_individual(panel, senales, i, fechas_sim, costos=None):
 
 
 def buy_and_hold(panel, fechas_sim, comision=config.COMISION, capital=config.CAPITAL_INICIAL):
-    """Buy & Hold equiponderado: compra al open del primer día (paga comisión),
-    mantiene y vende al cierre del último día (paga comisión)."""
+    """Buy & Hold equiponderado: compra al open del primer día, vende al cierre del último,
+    pagando comisión en ambos extremos."""
     abre = panel["open"].loc[fechas_sim[0]].to_numpy()
     cierres = panel["close"].loc[fechas_sim].to_numpy()
-    n = len(abre)
-    cantidades = (capital / n) / (abre * (1.0 + comision))
+    cantidades = (capital / len(abre)) / (abre * (1.0 + comision))
     valor = cierres @ cantidades
-    valor[-1] = valor[-1] * (1.0 - comision)
+    valor[-1] *= 1.0 - comision
     return pd.Series(valor, index=fechas_sim, name="buy_and_hold")
 
 
 class ContextoSimulacion:
-    """Agrupa lo que se repite en todas las simulaciones de un tramo: panel,
-    serie de régimen, fechas y un caché de pesos de largo plazo (los pesos
-    solo dependen de método, estimador, ventana y frecuencia de revisión)."""
+    """Lo que se repite en todas las simulaciones de un tramo: panel, régimen, fechas y un
+    caché de pesos (dependen solo de método, estimador, ventana y frecuencia de revisión)."""
 
     def __init__(self, panel, regimen, fechas, cache_pesos=None):
         self.panel = panel
@@ -386,11 +331,9 @@ class ContextoSimulacion:
                                   cerrar_al_final=cerrar_al_final)
 
 
-# ----------------------------------------------------------------------------
-# Análisis del Paso 8 y comparaciones
-# ----------------------------------------------------------------------------
+# --- Análisis de rebalanceo y comparaciones -----------------------------------
 def descomponer_resultado(resultado, capital=config.CAPITAL_INICIAL):
-    """Retorno bruto, costo total y retorno neto (como fracción del capital)."""
+    """Retorno bruto, costo total y retorno neto, como fracción del capital."""
     neto = resultado.equity.iloc[-1] / capital - 1.0
     costo = resultado.costos_totales / capital
     return {"retorno_bruto": neto + costo, "costo_total": costo, "retorno_neto": neto,
@@ -399,34 +342,35 @@ def descomponer_resultado(resultado, capital=config.CAPITAL_INICIAL):
 
 
 def barrido_rebalanceo(contexto, senales):
-    """Barrido f × δ (solo en TRAIN, WF-OOS). Debe existir un óptimo interior
-    entre no rebalancear (RP deja de serlo) y rebalancear siempre (costo)."""
-    from src.metrics import calmar, sharpe, max_drawdown
+    """Barrido de frecuencia × banda δ (solo en TRAIN, walk-forward OOS).
+
+    Se espera un óptimo interior: no rebalancear deja de ser RP y rebalancear siempre
+    cuesta demasiado.
+    """
+    from src.metrics import calmar, max_drawdown, sharpe
 
     filas = []
     for frecuencia in config.FRECUENCIAS_REBALANCEO:
         for delta in config.DELTAS_REBALANCEO:
             res = contexto.simular(senales, "rp", frecuencia, delta)
-            fila = {"frecuencia": frecuencia, "delta": delta}
-            fila.update(descomponer_resultado(res))
-            fila.update({"calmar": calmar(res.equity), "sharpe": sharpe(res.equity),
-                         "mdd": max_drawdown(res.equity)})
             turnovers = res.rebalanceos["turnover"]
-            fila["turnover_medio_rebalanceo"] = float(turnovers.mean()) if len(turnovers) else 0.0
-            filas.append(fila)
+            filas.append({
+                "frecuencia": frecuencia, "delta": delta, **descomponer_resultado(res),
+                "calmar": calmar(res.equity), "sharpe": sharpe(res.equity),
+                "mdd": max_drawdown(res.equity),
+                "turnover_medio_rebalanceo": float(turnovers.mean()) if len(turnovers) else 0.0})
     return pd.DataFrame(filas)
 
 
 def contribuciones_riesgo(rendimientos, fechas, cada=config.FRECUENCIAS_REBALANCEO["mensual"],
                           ventana=config.VENTANA_COV):
-    """RC_i/σ_p por activo bajo EW, naive y RP en fechas de revisión (Σ muestral ≤ t).
+    """RC_i/σ_p por activo bajo EW, naive y RP, en fechas de revisión (Σ muestral hasta t).
 
-    Regresa un DataFrame largo: fecha, metodo, activo, peso, rc_pct.
+    Devuelve un DataFrame largo: fecha, metodo, activo, peso, rc_pct.
     """
     datos = rendimientos.to_numpy()
-    posiciones = rendimientos.index.get_indexer(fechas)
     filas = []
-    for t in posiciones[::cada]:
+    for t in rendimientos.index.get_indexer(fechas)[::cada]:
         if t < config.MIN_DIAS_COV:
             continue
         cov = cov_muestral(datos[max(1, t + 1 - ventana):t + 1])
@@ -440,20 +384,20 @@ def contribuciones_riesgo(rendimientos, fechas, cada=config.FRECUENCIAS_REBALANC
 
 
 def comparar_estimadores(rendimientos, fechas, frecuencia=config.FRECUENCIA_DEFAULT):
-    """Pesos RP bajo Σ muestral, EWMA y Ledoit-Wolf: estabilidad y turnover implícito.
+    """Pesos RP con Σ muestral, EWMA y Ledoit-Wolf: estabilidad y turnover implícito.
 
-    turnover implícito por revisión = ½Σ|w_t − w_{t−1}| entre revisiones consecutivas;
-    anual = promedio × revisiones por año; costo ≈ T̄ × f × 2c.
+    El turnover por revisión es ½Σ|w_t − w_{t−1}| entre revisiones consecutivas; el anual
+    es ese promedio por las revisiones al año, y el costo es T̄ × f × 2c.
     """
     cada = config.FRECUENCIAS_REBALANCEO[frecuencia]
     revision = fechas_revision(len(rendimientos), cada)
+    revisiones_anio = config.DIAS_ANIO / cada
     series, filas = {}, []
     for estimador in ESTIMADORES:
         pesos, _, condicion = serie_pesos(rendimientos, revision, "rp", estimador)
         pesos = pesos.loc[fechas]
         en_revision = pesos[revision[rendimientos.index.get_indexer(fechas)]]
         cambios = 0.5 * en_revision.diff().abs().sum(axis=1).iloc[1:]
-        revisiones_anio = config.DIAS_ANIO / cada
         filas.append({
             "estimador": estimador,
             "volatilidad_media_pesos": float(pesos.std().mean()),
