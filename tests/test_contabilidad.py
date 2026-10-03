@@ -6,6 +6,7 @@ from src import config
 from src.backtest import Costos, run_backtest
 from tests.conftest import motor_sintetico
 
+#Capital dado 1,000,000
 C = config.COMISION
 CAPITAL = 1_000_000.0
 
