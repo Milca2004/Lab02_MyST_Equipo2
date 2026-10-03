@@ -36,22 +36,27 @@ class Salidas:
     """Rutas de salida y funciones para guardar resultados."""
 
     def __init__(self, quick):
+        """Con quick=True todo se escribe en .cache/quick/, nunca en docs/."""
         self.quick = quick
         self.resultados, self.figuras, self.cache = config.rutas_salida(quick)
 
     def csv(self, tabla, nombre, index=False):
+        """Guarda una tabla como CSV en la carpeta de resultados."""
         tabla.to_csv(self.resultados / nombre, index=index)
 
     def json(self, objeto, nombre):
+        """Guarda un objeto como JSON legible (UTF-8, tipos de numpy convertidos)."""
         with open(self.resultados / nombre, "w", encoding="utf-8") as f:
             json.dump(objeto, f, indent=2, ensure_ascii=False, default=_a_json)
 
     def leer_json(self, nombre):
+        """Lee un JSON de la carpeta de resultados."""
         with open(self.resultados / nombre, encoding="utf-8") as f:
             return json.load(f)
 
 
 def _a_json(valor):
+    """Convierte tipos de numpy (y lo demás a texto) para que json.dump los acepte."""
     if isinstance(valor, (np.integer,)):
         return int(valor)
     if isinstance(valor, (np.floating,)):
@@ -64,6 +69,7 @@ def _a_json(valor):
 
 
 def sha256_archivo(ruta):
+    """Hash SHA-256 del archivo: detecta cualquier cambio en θ congelado o el modelo."""
     with open(ruta, "rb") as f:
         return hashlib.sha256(f.read()).hexdigest()
 
@@ -81,6 +87,7 @@ def arbol_limpio():
 
 
 def git(*args):
+    """Corre un comando de git en la raíz del repo y regresa (código de salida, stdout)."""
     resultado = subprocess.run(["git", *args], capture_output=True, text=True,
                                cwd=config.RAIZ)
     return resultado.returncode, resultado.stdout.strip()
@@ -90,6 +97,12 @@ def git(*args):
 # Etapa DATA
 # ----------------------------------------------------------------------------
 def etapa_data(salidas):
+    """Etapa DATA: carga los datos congelados (descarga solo si no existen),
+    audita, limpia sin forward-fill y hace el split cronológico 80/20.
+
+    Con --quick el "TEST" son los últimos 2 meses de TRAIN (el TEST real no se toca).
+    Regresa (panel, split).
+    """
     if data.ensure_data():
         logging.info("Datos descargados y congelados en %s", config.ARCHIVO_PRECIOS)
     else:
@@ -123,6 +136,15 @@ def etapa_data(salidas):
 # Etapa TRAIN
 # ----------------------------------------------------------------------------
 def etapa_train(panel_completo, split, salidas):
+    """Etapa TRAIN: todo lo que se decide sin ver el TEST.
+
+    1. Walk-forward rolling (6 meses -> 1 mes) para las variantes por activo y
+       compartida; se elige la de mayor Calmar WF-OOS y se corre también anchored.
+    2. Barrido de rebalanceo (frecuencia × δ) y simulaciones RP, RP naive y EW.
+    3. Congela θ, rebalanceo y modelo de régimen en theta_congelado.json (con SHA-256).
+    4. Robustez: sensibilidad ±20%, curva de costos, costos realistas y 2 de 3
+       vs. un indicador; además Risk Parity, régimen, señales y diagnósticos de Optuna.
+    """
     reloj = time.time()
     n_train = split["n_train"]
     panel = truncar(panel_completo, n_train)          # solo TRAIN
@@ -485,6 +507,7 @@ def diagnosticos_optuna(salidas, panel, features, ultimo, variante, n_trials):
 
 
 def _rejilla(parametro, puntos=12):
+    """Valores equiespaciados del rango de un parámetro en ESPACIO (enteros sin repetir)."""
     tipo, minimo, maximo = optimize.ESPACIO[parametro]
     valores = np.linspace(minimo, maximo, puntos)
     if tipo == "int":
@@ -496,6 +519,13 @@ def _rejilla(parametro, puntos=12):
 # Etapa TEST (se toca UNA sola vez, con candado)
 # ----------------------------------------------------------------------------
 def etapa_test(panel_completo, split, salidas):
+    """Etapa TEST: evalúa UNA sola vez el sistema congelado sobre el último 20%.
+
+    Candado (salvo en --quick): aborta si git no está limpio, si theta_congelado.json cambió
+    después de un TEST previo o si el modelo de régimen no coincide con su hash.
+    Oficial: θ y modelo congelados sin re-optimizar. Secundario: el walk-forward
+    sigue mes a mes sobre TEST, solo como comparación.
+    """
     ruta_theta = salidas.resultados / "theta_congelado.json"
     if not ruta_theta.exists():
         raise SystemExit("No existe theta_congelado.json: corre primero --stage train.")
@@ -582,6 +612,7 @@ def etapa_test(panel_completo, split, salidas):
 # Etapa REPORT
 # ----------------------------------------------------------------------------
 def etapa_report(salidas):
+    """Etapa REPORT: genera las figuras y los borradores/PDFs a partir de los resultados."""
     from src import plots, report
     plots.generar_todas(salidas.resultados, salidas.figuras)
     report.generar_todo(salidas.resultados, salidas.figuras,
@@ -596,6 +627,11 @@ def guardar_hashes(salidas):
 
 
 def main():
+    """Punto de entrada: `python main.py [--stage data|train|test|report|all] [--quick]`.
+
+    DATA siempre corre. Con --stage all, el TEST se omite (con aviso) si el
+    working tree de git no está limpio.
+    """
     parser = argparse.ArgumentParser(description="Lab 02 MyST — Equipo 2")
     parser.add_argument("--stage", choices=["data", "train", "test", "report", "all"], default="all")
     parser.add_argument("--quick", action="store_true",
