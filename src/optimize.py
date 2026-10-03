@@ -69,26 +69,39 @@ class CacheIndicadores:
     signals.generate_signals (hay una prueba que lo verifica)."""
 
     def __init__(self, ohlcv):
+        """Guarda el cierre y calcula el ATR una vez; los cachés empiezan vacíos."""
         self.close = ohlcv["close"]
         self.atr = signals.atr(ohlcv["high"], ohlcv["low"], ohlcv["close"])
         self.emas, self.rsis, self.bandas = {}, {}, {}
 
     def _ema(self, h):
+        """EMA de ventana h (se calcula la primera vez y luego se reutiliza)."""
         if h not in self.emas:
             self.emas[h] = signals.ema(self.close, h)
         return self.emas[h]
 
     def _rsi(self, n):
+        """RSI de Wilder de ventana n (con caché)."""
         if n not in self.rsis:
             self.rsis[n] = signals.rsi(self.close, n)
         return self.rsis[n]
 
     def _bandas(self, n):
+        """Media móvil y σ poblacional (ddof=0) de ventana n para Bollinger (con caché)."""
         if n not in self.bandas:
             self.bandas[n] = (self.close.rolling(n).mean(), self.close.rolling(n).std(ddof=0))
         return self.bandas[n]
 
     def senales(self, params, umbral=config.UMBRAL_CONFIRMACION, indicadores=None):
+        """Votos de los 3 indicadores y señal confirmada para un θ.
+
+        Votos (+1 largo, −1 corto, 0 neutral), todos con datos ≤ t:
+          EMA: signo(EMA_rápida − EMA_lenta), 0 mientras se calienta la lenta.
+          RSI: +1 si RSI < rsi_lower, −1 si RSI > rsi_upper.
+          BB:  +1 si P < media − k·σ, −1 si P > media + k·σ.
+        s = confirmar(votos, umbral): hay señal solo si |suma de votos| ≥ 2 (2 de 3).
+        `indicadores` permite usar un subconjunto (experimento de un indicador).
+        """
         rapida = params["ema_fast"]
         lenta = rapida + params["ema_gap"]
         voto_ema = np.sign(self._ema(rapida) - self._ema(lenta))
@@ -178,6 +191,7 @@ def correr_estudio(evaluar, n_trials, seed, n_min):
     evaluar(params) -> (calmar, n_operaciones)
     """
     def objetivo(trial):
+        """Calmar del θ sugerido, o OBJETIVO_INVALIDO si no llega a n_min operaciones."""
         params = sugerir_parametros(trial)
         valor, n_ops = evaluar(params)
         trial.set_user_attr("n_operaciones", int(n_ops))
@@ -223,7 +237,12 @@ def backtest_activo(cache, ohlcv_muestra, params, mascara=None, nombre="activo",
 
 
 def evaluador_activo(cache, ohlcv_muestra, mascara, nombre):
+    """Regresa la función que Optuna evalúa para un solo activo.
+
+    mascara: días en que se permite abrir (régimen j); None = todos.
+    """
     def evaluar(params):
+        """(Calmar, n_operaciones) del backtest del activo con θ = params."""
         res = backtest_activo(cache, ohlcv_muestra, params, mascara, nombre)
         return calmar(res.equity), res.n_operaciones
     return evaluar
@@ -233,6 +252,7 @@ def evaluador_compartido(caches, muestras, mascara):
     """Variante compartida: Calmar de la curva promedio de los 6 backtests
     individuales (cada uno normalizado a 1) y suma de operaciones."""
     def evaluar(params):
+        """(Calmar de la curva promedio, operaciones de los 6 activos) con θ = params."""
         curvas, n_ops = [], 0
         for nombre in caches:
             res = backtest_activo(caches[nombre], muestras[nombre], params, mascara, nombre)
@@ -514,6 +534,7 @@ def walk_forward_efficiency(cagr_oos, calmar_oos, tabla_is):
 # Robustez (sección 13)
 # ----------------------------------------------------------------------------
 def fila_metricas(etiqueta, res):
+    """Fila de tabla con Calmar, Sharpe, MDD, CAGR, operaciones y costos de un resultado."""
     from src.metrics import cagr, calmar, max_drawdown, sharpe
     return {"caso": etiqueta, "calmar": calmar(res.equity), "sharpe": sharpe(res.equity),
             "mdd": max_drawdown(res.equity), "cagr": cagr(res.equity),
