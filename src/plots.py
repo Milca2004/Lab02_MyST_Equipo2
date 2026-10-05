@@ -33,6 +33,9 @@ plt.rcParams.update({
     "figure.facecolor": "white", "axes.facecolor": "#fcfcfb",
 })
 
+# Nombre de cada conjunto en títulos (los archivos conservan el sufijo interno)
+ETIQUETA = {"wf_oos": "WF-OOS", "test": "TEST"}
+
 
 def _guardar(fig, dir_fig, nombre):
     fig.tight_layout()
@@ -115,7 +118,7 @@ def fig_rendimientos(mensual, anual, conjunto, dir_fig):
     ax1.set_yticks(range(len(matriz)), [str(a) for a in matriz.index])
     ax1.set_xlabel("Mes")
     ax1.set_ylabel("Año")
-    ax1.set_title(f"Rendimiento mensual del sistema RP (%) — {conjunto}")
+    ax1.set_title(f"Rendimiento mensual del sistema RP (%) — {ETIQUETA[conjunto]}")
     ax1.grid(False)
     for i in range(matriz.shape[0]):
         for j in range(matriz.shape[1]):
@@ -268,7 +271,7 @@ def fig_senales(senales, dir_fig, conjunto):
                   [d.strftime("%Y-%m") for d in semanal.index[::pasos]], rotation=30)
     ax.grid(False)
     ax.set_xlabel("Semana")
-    ax.set_title(f"Fuerza de señal s_i por activo (promedio semanal) — {conjunto}")
+    ax.set_title(f"Fuerza de señal s_i por activo (promedio semanal) — {ETIQUETA[conjunto]}")
     fig.colorbar(imagen, ax=ax, label="s_i (−1 corto … +1 largo)")
     _guardar(fig, dir_fig, f"07b_senales_s_{conjunto}.png")
 
@@ -354,7 +357,7 @@ def fig_individuales(curvas, dir_fig, conjunto):
                 lw=1.4, label=f"{a} sola")
     ax.set_xlabel("Fecha")
     ax.set_ylabel("Valor (millones USD)")
-    ax.set_title(f"Portafolio vs. estrategia en cada activo (100% del capital) — {conjunto}")
+    ax.set_title(f"Portafolio vs. estrategia en cada activo (100% del capital) — {ETIQUETA[conjunto]}")
     ax.legend(ncol=4, fontsize=11)
     _guardar(fig, dir_fig, f"10_portafolio_vs_individuales_{conjunto}.png")
 
@@ -369,7 +372,7 @@ def fig_costos_vs_bruto(metricas_tabla, dir_fig, conjunto):
     ax.axhline(0, color=GRIS, lw=1)
     ax.set_xticks(x, [n.replace(" (estrategia sola)", "") for n in d["nombre"]], rotation=20)
     ax.set_ylabel("Miles de USD")
-    ax.set_title(f"Costos totales vs. retorno bruto — {conjunto}")
+    ax.set_title(f"Costos totales vs. retorno bruto — {ETIQUETA[conjunto]}")
     ax.legend()
     _guardar(fig, dir_fig, f"11_costos_vs_bruto_{conjunto}.png")
 
@@ -439,19 +442,63 @@ def fig_optuna(trials, importancia, superficie, info, dir_fig):
     if superficie is not None and len(superficie):
         p1, p2 = info["parametros_superficie"]
         tabla = superficie.pivot(index=p2, columns=p1, values="calmar")
-        X, Y = np.meshgrid(tabla.columns.to_numpy(dtype=float), tabla.index.to_numpy(dtype=float))
-        fig = plt.figure(figsize=(11, 8))
-        ax = fig.add_subplot(projection="3d")
-        ax.plot_surface(X, Y, np.ma.masked_invalid(tabla.to_numpy()), cmap=SECUENCIAL,
-                        edgecolor="#ffffff", linewidth=0.3)
-        ax.set_xlabel(p1, labelpad=12)
-        ax.set_ylabel(p2, labelpad=12)
-        ax.set_zlabel("Calmar", labelpad=8)
-        ax.set_title("Superficie del Calmar: corte 2D de un espacio de 10 dimensiones\n"
-                     "(resto de parámetros fijos en el θ robusto; huecos = < N_MIN operaciones)",
-                     fontsize=14)
+        validos_z = np.isfinite(tabla.to_numpy())
+        # plot_surface solo dibuja celdas con sus 4 esquinas válidas; sin ninguna, la figura sale vacía
+        hay_superficie = (validos_z[1:, 1:] & validos_z[:-1, 1:] & validos_z[1:, :-1] & validos_z[:-1, :-1]).any()
+        if hay_superficie:
+            X, Y = np.meshgrid(tabla.columns.to_numpy(dtype=float), tabla.index.to_numpy(dtype=float))
+            fig = plt.figure(figsize=(11, 8))
+            ax = fig.add_subplot(projection="3d")
+            ax.plot_surface(X, Y, np.ma.masked_invalid(tabla.to_numpy()), cmap=SECUENCIAL,
+                            edgecolor="#ffffff", linewidth=0.3)
+            ax.set_xlabel(p1, labelpad=12)
+            ax.set_ylabel(p2, labelpad=12)
+            ax.set_zlabel("Calmar", labelpad=8)
+            ax.set_title("Superficie del Calmar: corte 2D de un espacio de 10 dimensiones\n"
+                         "(resto de parámetros fijos en el θ robusto; huecos = < N_MIN operaciones)",
+                         fontsize=14)
+        else:
+            # Los puntos válidos no forman superficie: mapa 2D de la malla completa
+            ops = superficie.pivot(index=p2, columns=p1, values="n_operaciones")
+            fig, ax = plt.subplots(figsize=(12, 7))
+            imagen = ax.imshow(ops.to_numpy(), cmap=SECUENCIAL, aspect="auto", origin="lower")
+            ax.set_xticks(range(len(ops.columns)), [f"{v:g}" for v in ops.columns])
+            ax.set_yticks(range(len(ops.index)), [f"{v:.2f}" for v in ops.index])
+            ax.grid(False)
+            for i in range(tabla.shape[0]):
+                for j in range(tabla.shape[1]):
+                    z = tabla.iloc[i, j]
+                    if np.isfinite(z):
+                        ax.text(j, i, f"{z:.2f}", ha="center", va="center", fontsize=10,
+                                color="white", weight="bold")
+            ax.set_xlabel(p1)
+            ax.set_ylabel(p2)
+            fig.colorbar(imagen, ax=ax, label="Número de operaciones en train")
+            ax.set_title(f"Corte {p1} × {p2} (resto en el θ robusto): solo {int(validos_z.sum())} de "
+                         f"{validos_z.size} puntos\nalcanzan N_MIN operaciones; el número en la celda es "
+                         "su Calmar (sin superficie que dibujar)", fontsize=14)
+            fig.tight_layout()
         fig.savefig(dir_fig / "14d_optuna_superficie_3d.png", bbox_inches="tight")
         plt.close(fig)
+
+
+def fig_ic_regimenes(por_regimen, dir_fig):
+    """Media diaria del sistema RP por régimen con su IC 95% bootstrap (WF-OOS y TEST)."""
+    fig, ax = plt.subplots(figsize=(12, 5))
+    paneles = [(c, d[d["nombre"] == "RP (sistema)"]) for c, d in por_regimen.items() if d is not None]
+    for k, (conjunto, d) in enumerate(paneles):
+        y = np.arange(len(d)) + (k - (len(paneles) - 1) / 2) * 0.25
+        media = d["media_diaria"].to_numpy() * 1e4
+        error = [media - d["ic95_inf"].to_numpy() * 1e4, d["ic95_sup"].to_numpy() * 1e4 - media]
+        ax.errorbar(media, y, xerr=error, fmt="o", ms=9, capsize=6, color=COLORES[k],
+                    label=ETIQUETA[conjunto])
+    ax.axvline(0, color=GRIS, ls=":", lw=1.2)
+    ax.set_yticks(range(len(paneles[0][1])), paneles[0][1]["regimen"])
+    ax.invert_yaxis()
+    ax.set_xlabel("Rendimiento diario medio del sistema RP (pb) e IC 95% bootstrap")
+    ax.set_title("¿Difiere el desempeño entre regímenes? (IC que cruza 0 = no significativo)")
+    ax.legend(loc="lower right")
+    _guardar(fig, dir_fig, "15_ic_por_regimen.png")
 
 
 # ------------------------------------------------------------------------------
@@ -481,6 +528,8 @@ def generar_todas(dir_res, dir_fig):
     fig_regimenes(serie.loc[curvas_oos.index[0]:], curvas_oos, dir_fig)
     fig_transiciones(_leer(dir_res, "eventos_regimen_wf_oos.csv"),
                      _leer(dir_res, "regimen_persistencia_wf_oos.csv"), dir_fig)
+    fig_ic_regimenes({c: _leer(dir_res, f"metricas_por_regimen_{c}.csv") for c in ("wf_oos", "test")},
+                     dir_fig)
     fig_contribuciones(_leer(dir_res, "contribuciones_riesgo_promedio.csv"), dir_fig)
     fig_correlacion_regimenes(_leer(dir_res, "correlacion_por_regimen_matrices.csv"), dir_fig)
     with open(dir_res / "theta_congelado.json", encoding="utf-8") as f:
