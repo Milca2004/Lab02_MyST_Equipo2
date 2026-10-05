@@ -5,6 +5,7 @@ TEST no exista, esas partes quedan con el marcador [PENDIENTE: test].
 """
 import json
 import re
+import textwrap
 from pathlib import Path
 
 import matplotlib
@@ -124,6 +125,7 @@ def construir_reporte(R, figuras_rel):
     corr_sen = R.csv("correlacion_senales.csv")
     port_resumen = R.json("portafolio_resumen_wf_oos.json")
     diag = R.json("optuna_diagnostico.json")
+    superf = R.csv("optuna_superficie.csv")
 
     # ------------- cifras derivadas (todas de archivos) --------------------
     ew_rc = contrib[contrib["metodo"] == "ew"].set_index("activo")
@@ -132,15 +134,10 @@ def construir_reporte(R, figuras_rel):
     rp_pesos = contrib[contrib["metodo"] == "rp"].set_index("activo")["peso"]
     naive_pesos = contrib[contrib["metodo"] == "naive"].set_index("activo")["peso"]
     dif_naive_rp = float((rp_pesos - naive_pesos).abs().max())
-    base_sens = sens[sens["factor"] == 0]["calmar"].iloc[0]
-    sens_theta = sens[sens["parametro"].isin([p for p in sens["parametro"].unique()
-                                              if p not in ("m_regimen", "delta", "ventana_cov")])]
-    rango_sens = sens_theta.groupby("parametro")["calmar"].agg(lambda c: c.max() - c.min())
-    peor_param = rango_sens.idxmax()
-    cambios_20 = sens_theta[sens_theta["factor"].abs() == 0.2]
-    frac_signo = float((np.sign(cambios_20["calmar"]) == np.sign(base_sens)).mean())
-    frac_cerca = float(((cambios_20["calmar"] - base_sens).abs() <= 0.5 * abs(base_sens)).mean())
-    calmar_min_sens, calmar_max_sens = float(sens_theta["calmar"].min()), float(sens_theta["calmar"].max())
+    rs = resumen_sensibilidad(sens)
+    base_sens, rango_sens, peor_param = rs["base"], rs["rango"], rs["peor_param"]
+    frac_signo, frac_cerca = rs["frac_signo"], rs["frac_cerca"]
+    calmar_min_sens, calmar_max_sens = rs["calmar_min"], rs["calmar_max"]
     equilibrio = costos["comision_equilibrio"]
     margen = costos["margen_seguridad"]
     fall = pd.DataFrame(opt["fallbacks_por_regimen"])
@@ -337,7 +334,11 @@ Diagnóstico de Optuna ({diag['activo']}, última ventana de TRAIN {diag['train_
 {fig('14a_optuna_historia.png', 'Historia')}
 {fig('14b_optuna_importancia.png', 'Importancia')}
 {fig('14c_optuna_slices.png', 'Slices')}
-{fig('14d_optuna_superficie_3d.png', 'Superficie 3D')}
+Corte {diag['parametros_superficie'][0]} × {diag['parametros_superficie'][1]} (resto de θ fijo en el θ robusto):
+{int(superf['calmar'].notna().sum())} de {len(superf)} puntos de la malla alcanzan N_MIN operaciones; como no
+forman una superficie, se muestran como mapa 2D (color = operaciones, número = Calmar del punto válido).
+
+{fig('14d_optuna_superficie_3d.png', 'Corte de la superficie del Calmar')}
 
 ## 6. Métricas por conjunto
 
@@ -349,6 +350,8 @@ Diagnóstico de Optuna ({diag['activo']}, última ventana de TRAIN {diag['train_
 {fig('02_drawdown.png', 'Drawdown')}
 {fig('03_rendimientos_wf_oos.png', 'Rendimientos WF-OOS')}
 
+{bloque_retornos(R, 'wf_oos', rp)}
+
 ### WF-IS
 
 Promedio por ventana (portafolio sobre su propio train, θ_k in-sample): CAGR {pct(fila_roll['cagr_is_promedio'])},
@@ -359,6 +362,8 @@ Calmar {num(fila_roll['calmar_is_promedio'])} (detalle en `wf_is_por_ventana.csv
 {tabla_test}
 
 {fig('03_rendimientos_test.png', 'Rendimientos TEST') if met_test is not None else ''}
+
+{bloque_retornos(R, 'test', trp) if met_test is not None else ''}
 
 ## 7. Análisis de régimen
 
@@ -396,6 +401,8 @@ Desempeño diario del sistema por régimen (IC 95% bootstrap, 1000 remuestreos):
           {'nombre': str, 'regimen': str, 'dias': lambda x: num(x, 0), 'media_diaria': lambda x: pct(x, 3),
            'ic95_inf': lambda x: pct(x, 3), 'ic95_sup': lambda x: pct(x, 3), 'volatilidad_anual': pct,
            'sharpe': num, 'mdd': pct})}
+
+{fig('15_ic_por_regimen.png', 'IC por régimen')}
 
 Correlación promedio entre pares por régimen: {', '.join(f"{r['regimen']} {num(r['correlacion_media'])}" for _, r in corr_reg.iterrows())}.
 
@@ -546,7 +553,7 @@ anual por turnover: {pct(costos['costo_anual_pct_capital'], 3)} del capital.
    {degradacion}
 3. **¿Qué tan sensible es a ±20%? ¿Meseta o pico?** Calmar base {num(base_sens)}; el parámetro más
    sensible es {peor_param}. Con ±20% el Calmar conserva el signo en {pct(frac_signo, 0)} de los casos
-   y solo {pct(frac_cerca, 0)} queda dentro de ±50% de la base (rango {num(calmar_min_sens)} a {num(calmar_max_sens)}).
+   y {pct(frac_cerca, 0)} queda dentro de ±50% de la base (rango {num(calmar_min_sens)} a {num(calmar_max_sens)}).
    {interpretar_sensibilidad(frac_signo, frac_cerca)}
 4. **¿A qué costo deja de ser rentable?** {('A ' + pct(equilibrio, 3) + ' por lado; margen de seguridad ' + num(margen) + '× frente a 0.125%.') if equilibrio and np.isfinite(equilibrio) and equilibrio > 0 else 'Con la comisión oficial el retorno neto WF-OOS ya es ≤ 0: no hay margen de seguridad.'}
    En el escenario realista (spread 2 bps, borrow 0.5%, impacto) el CAGR pasa de
@@ -561,6 +568,7 @@ anual por turnover: {pct(costos['costo_anual_pct_capital'], 3)} del capital.
    {pct(dif_naive_rp, 2)} en pesos promedio: con correlaciones parecidas, naive ≈ Spinu. RP sí iguala
    las contribuciones al riesgo (su objetivo), pero como la exposición media es ~10% y las señales
    dominan el P&L, el reparto de pesos casi no mueve el Calmar.
+   {respuesta_6_test(met_oos, met_test)}
 7. **Tres limitaciones para operar con capital real:** (i) universo de 6 mega-cap tecnológicas muy
    correlacionadas (correlación media {num(corr_reg['correlacion_media'].mean())}) elegidas *ex post*
    (supervivencia): la diversificación es limitada y el régimen de Crisis afecta a todos a la vez;
@@ -586,6 +594,51 @@ Barrido de slippage (por lado): CAGR de {pct(slip['cagr'].iloc[0])} (0 bps) a {p
 {sec_txt}
 """)
     return "\n".join(secciones)
+
+
+def tabla_retornos(df, periodo):
+    if periodo == "trimestral":
+        etiquetas = [f"{d.year}-T{(d.month - 1) // 3 + 1}" for d in df.index]
+    else:
+        etiquetas = [str(d.year) for d in df.index]
+    t = df.copy()
+    t.insert(0, "periodo", etiquetas)
+    return tabla_md(t, ["periodo", "RP (sistema)", "EW", "Buy & Hold"],
+                    ["Trimestre" if periodo == "trimestral" else "Año", "RP (sistema)", "Pesos iguales (EW)",
+                     "Buy & Hold EW"],
+                    {"periodo": str, "RP (sistema)": pct, "EW": pct, "Buy & Hold": pct})
+
+
+def bloque_retornos(R, conjunto, fila_rp):
+    """Tablas de rendimientos anuales y trimestrales (los mensuales están en el mapa de calor)."""
+    etiqueta = {"wf_oos": "WF-OOS", "test": "TEST"}[conjunto]
+    tablas = {per: R.csv(f"retornos_{per}_{conjunto}.csv", index_col=0, parse_dates=True)
+              for per in ("anual", "trimestral")}
+    if any(t is None for t in tablas.values()):
+        return PENDIENTE
+    return (f"Rendimientos anuales — {etiqueta} ({fila_rp['inicio']} a {fila_rp['fin']}; el año o trimestre "
+            f"que corta esas fechas está incompleto):\n\n{tabla_retornos(tablas['anual'], 'anual')}\n\n"
+            f"Rendimientos trimestrales — {etiqueta}:\n\n{tabla_retornos(tablas['trimestral'], 'trimestral')}")
+
+
+def resumen_sensibilidad(sens):
+    """Cifras de la sensibilidad ±20% sobre los parámetros de θ (sin m_regimen, delta ni ventana_cov)."""
+    base = sens[sens["factor"] == 0]["calmar"].iloc[0]
+    theta = sens[~sens["parametro"].isin(["m_regimen", "delta", "ventana_cov"])]
+    rango = theta.groupby("parametro")["calmar"].agg(lambda c: c.max() - c.min())
+    cambios_20 = theta[theta["factor"].abs() == 0.2]
+    return {"base": base, "rango": rango, "peor_param": rango.idxmax(),
+            "frac_signo": float((np.sign(cambios_20["calmar"]) == np.sign(base)).mean()),
+            "frac_cerca": float(((cambios_20["calmar"] - base).abs() <= 0.5 * abs(base)).mean()),
+            "calmar_min": float(theta["calmar"].min()), "calmar_max": float(theta["calmar"].max())}
+
+
+def veredicto_sensibilidad(frac_signo, frac_cerca):
+    if frac_signo >= 0.8 and frac_cerca >= 0.6:
+        return "meseta"
+    if frac_signo >= 0.8:
+        return "meseta baja y ruidosa (no pico, pero magnitud inestable)"
+    return "pico aislado"
 
 
 def conclusion_principal(rp, bh, fila_roll, equilibrio, met_test):
@@ -641,6 +694,32 @@ def interpretar_sensibilidad(frac_signo, frac_cerca):
         return ("El signo casi siempre se conserva, pero la magnitud del Calmar cambia mucho: es una "
                 "meseta baja y ruidosa, no un pico aislado, pero tampoco un resultado estable en magnitud.")
     return "Muchas perturbaciones cambian el signo del Calmar: el resultado se parece más a un pico aislado."
+
+
+def respuesta_6_test(met_oos, met_test):
+    if met_test is None:
+        return f"TEST: {PENDIENTE}"
+    t = met_test.set_index("nombre")
+    rp, ew, nv = t.loc["RP (sistema)"], t.loc["Pesos iguales (EW)"], t.loc["RP naive"]
+    return (f"**En TEST:** RP Calmar {num(rp['calmar'])} vs. EW {num(ew['calmar'])} vs. RP naive {num(nv['calmar'])}; "
+            f"MDD {pct(rp['mdd'])} vs. {pct(ew['mdd'])} vs. {pct(nv['mdd'])}; volatilidad {pct(rp['volatilidad'])} vs. "
+            f"{pct(ew['volatilidad'])} vs. {pct(nv['volatilidad'])}; CAGR {pct(rp['cagr'])} vs. {pct(ew['cagr'])} vs. "
+            f"{pct(nv['cagr'])}. "
+            + ("RP mejora el Calmar frente a pesos iguales en TEST" if rp["calmar"] > ew["calmar"]
+               else "RP no mejora el Calmar frente a pesos iguales en TEST")
+            + (", aunque RP naive queda por encima de Spinu" if nv["calmar"] > rp["calmar"] else "")
+            + ". " + orden_calmar(met_oos, met_test))
+
+
+def orden_calmar(met_oos, met_test):
+    """Compara el orden por Calmar de RP, naive y EW entre WF-OOS y TEST."""
+    nombres = {"RP (sistema)": "RP", "RP naive": "naive", "Pesos iguales (EW)": "EW"}
+    orden = [" > ".join(nombres[n] for n in m.set_index("nombre").loc[list(nombres), "calmar"]
+                        .sort_values(ascending=False).index) for m in (met_oos, met_test)]
+    if orden[0] == orden[1]:
+        return f"El orden por Calmar ({orden[0]}) se mantiene de WF-OOS a TEST."
+    return (f"El orden por Calmar cambia de WF-OOS ({orden[0]}) a TEST ({orden[1]}): con tan pocas "
+            "operaciones, la diferencia entre esquemas de pesos no es robusta.")
 
 
 def respuesta_5(reg_rp, sig_reg):
@@ -770,75 +849,144 @@ def construir_diapositivas(R):
     un = un[un["nivel"] == "portafolio"].set_index("caso")
     contrib = R.csv("contribuciones_riesgo_promedio.csv")
     ew_rc = contrib[contrib["metodo"] == "ew"].set_index("activo")
-    sens = R.csv("sensibilidad.csv")
+    rp_pesos = contrib[contrib["metodo"] == "rp"].set_index("activo")["peso"]
+    rp_cmp = R.csv("rp_vs_naive_vs_ew.csv").set_index("nombre")
+    rs = resumen_sensibilidad(R.csv("sensibilidad.csv"))
     opt = R.json("optimizacion_resumen.json")
+    corr_reg = R.csv("correlacion_por_regimen.csv")
     rp, ew, bh = met_oos.loc["RP (sistema)"], met_oos.loc["Pesos iguales (EW)"], met_oos.loc["Buy & Hold EW"]
+    naive = met_oos.loc["RP naive"]
     asign = config.ASIGNACION
+    test_sec = R.json("test_secundario_resumen.json")
+    n_cfg_total = opt["configuraciones_evaluadas_train"] + (test_sec["trials_totales_test_secundario"] if test_sec else 0)
+
+    # P1: regla 2 de 3 frente a un indicador
+    dos, otros = un.loc["2 de 3"], un.drop(index="2 de 3")
+    menos = (otros["n_operaciones"] > dos["n_operaciones"]).mean()
+    mejor = (otros["calmar"] < dos["calmar"]).mean()
+
+    # P5: IC bootstrap por régimen
+    def ic_reg(nombre):
+        d = R.csv(nombre)
+        return None if d is None else d[d["nombre"] == "RP (sistema)"].set_index("regimen")
+    reg_oos, reg_test = ic_reg("metricas_por_regimen_wf_oos.csv"), ic_reg("metricas_por_regimen_test.csv")
+
+    def linea_ic(etiqueta, d):
+        return (f"{etiqueta} (pb/día, IC 95%): " + " · ".join(
+            f"{r} {num(f['media_diaria'] * 1e4, 1)} [{num(f['ic95_inf'] * 1e4, 1)}, {num(f['ic95_sup'] * 1e4, 1)}]"
+            for r, f in d.iterrows()))
+    tablas_ic = [d for d in (reg_oos, reg_test) if d is not None]
+    n_ic = sum(len(d) for d in tablas_ic)
+    n_cero = sum(int(d["ic_incluye_cero"].astype(bool).sum()) for d in tablas_ic)
+    m = config.M_REGIMEN
+    vol_reg = reg_oos["volatilidad_anual"]
+
+    # TEST
     if met_test is not None:
         t = met_test.set_index("nombre")
-        texto_test = [f"Sistema congelado: CAGR {pct(t.loc['RP (sistema)', 'cagr'])}, MDD {pct(t.loc['RP (sistema)', 'mdd'])}, "
-                      f"Calmar {num(t.loc['RP (sistema)', 'calmar'])}",
-                      f"Buy & Hold: CAGR {pct(t.loc['Buy & Hold EW', 'cagr'])}, Calmar {num(t.loc['Buy & Hold EW', 'calmar'])}",
-                      "Se tocó UNA vez, con candado (hash de θ + commit)"]
+        trp, tew, tnv, tbh = (t.loc["RP (sistema)"], t.loc["Pesos iguales (EW)"], t.loc["RP naive"],
+                              t.loc["Buy & Hold EW"])
+        lock = R.json("test_lock.json")
+        realistas_t = R.csv("costos_realistas_test.csv").set_index("caso")
+        slip_t = R.csv("slippage_test.csv")
+        texto_test = [f"Sistema congelado: CAGR {pct(trp['cagr'])}, MDD {pct(trp['mdd'])}, Calmar {num(trp['calmar'])}",
+                      f"EW: Calmar {num(tew['calmar'])} · Buy & Hold: CAGR {pct(tbh['cagr'])}, Calmar {num(tbh['calmar'])}",
+                      f"P2 · Calmar WF-OOS {num(rp['calmar'])} → TEST {num(trp['calmar'])}; "
+                      f"CAGR {pct(rp['cagr'])} → {pct(trp['cagr'])}",
+                      f"Se tocó UNA vez, con candado (hash de θ + commit {lock['commit'][:7]})"]
+        rp_test = [f"TEST · Calmar RP {num(trp['calmar'])} vs. EW {num(tew['calmar'])} vs. naive {num(tnv['calmar'])}; "
+                   f"MDD {pct(trp['mdd'])} vs. {pct(tew['mdd'])} vs. {pct(tnv['mdd'])}"]
+        lim_test = (f"Realista en TEST (spread + borrow + impacto): Calmar {num(realistas_t.loc['oficial (solo comisión)', 'calmar'])}"
+                    f" → {num(realistas_t.loc['realista (todo junto)', 'calmar'])}; con slippage "
+                    f"{num(slip_t['slippage_bps'].iloc[-1], 0)} bps → {num(slip_t['calmar'].iloc[-1])}")
     else:
         texto_test = [PENDIENTE, "Se toca UNA sola vez con θ congelado y candado (hash + commit)"]
-    base_sens = sens[sens["factor"] == 0]["calmar"].iloc[0]
+        rp_test = [f"TEST: {PENDIENTE}"]
+        lim_test = f"Escenario realista en TEST: {PENDIENTE}"
+
     ilusion = ew_rc.loc[["TSLA", "NVDA"], "rc_pct"].sum()
     return [
         ("Problema, datos y activos",
-         [f"6 mega-cap tech diarias, {split['train_inicio']} a 2026-08-31 (congelado)",
+         [f"6 mega-cap tech diarias, {split['train_inicio']} a {split['test_fin']} (congelado)",
           f"TRAIN hasta {split['train_fin']} · TEST desde {split['test_inicio']}",
           f"Milca: {', '.join(asign['Milca'])} · Paula: {', '.join(asign['Paula'])} · Arturo: {', '.join(asign['Arturo'])}",
-          "Sesgo de supervivencia: B&H es casi imbatible en retorno → se juzga por Calmar"],
-         "06a_regimenes_linea_tiempo.png", "Milca", 50),
+          "Sesgo de supervivencia: B&H casi imbatible en retorno → se juzga por Calmar"],
+         "06a_regimenes_linea_tiempo.png", "Milca", 40),
         ("Señal: 3 familias y regla 2 de 3",
          ["EMA (tendencia) · RSI (momento) · Bollinger (volatilidad)",
           "s = (1/3)·Σ votos si |Σ| ≥ 2; (+1, +1, −1) NO abre",
           "Compuerta (¿hay posición?) ≠ fuerza (¿cuánto riesgo?)"],
-         "13_correlacion_senales.png", "Milca", 50),
-        ("¿Qué aporta 2 de 3?",
-         [f"2 de 3: {num(un.loc['2 de 3', 'n_operaciones'], 0)} operaciones, Calmar {num(un.loc['2 de 3', 'calmar'])}"]
-         + [f"{c}: {num(f['n_operaciones'], 0)} ops, Calmar {num(f['calmar'])}" for c, f in un.drop(index='2 de 3').iterrows()],
-         "09_dos_de_tres_vs_un_indicador.png", "Milca", 55),
-        ("Motor de backtest",
-         ["Ejecución en t+1 al open · SL primero si SL y TP en la misma barra",
-          "Gap → sale al open · comisión 0.125% por lado · cortos con pasivo",
-          "Sin apalancamiento: Σ|w| ≤ 1 verificado en cada ejecución"],
-         "11_costos_vs_bruto_wf_oos.png", "Paula", 50),
-        ("Optimización y walk-forward",
-         [f"Optuna TPE, {opt['n_trials_por_estudio']} trials por régimen por ventana, objetivo Calmar",
-          f"{opt['ventanas_rolling']} ventanas 6→1 meses · {opt['configuraciones_evaluadas_train']:,} configuraciones",
-          f"WFE rendimiento {num(fila_roll['wfe_rendimiento'])} · WFE Calmar {num(fila_roll['wfe_calmar'])}"],
-         "14d_optuna_superficie_3d.png", "Paula", 60),
-        ("WF-OOS vs. benchmarks",
-         [f"RP: CAGR {pct(rp['cagr'])}, MDD {pct(rp['mdd'])}, Calmar {num(rp['calmar'])}",
+         "13_correlacion_senales.png", "Milca", 40),
+        ("P1 · ¿Qué aporta 2 de 3?",
+         [f"2 de 3: {num(dos['n_operaciones'], 0)} operaciones, Calmar {num(dos['calmar'])}, MDD {pct(dos['mdd'])}"]
+         + [f"{c}: {num(f['n_operaciones'], 0)} ops, Calmar {num(f['calmar'])}, MDD {pct(f['mdd'])}"
+            for c, f in otros.iterrows()]
+         + [f"Filtra: menos operaciones que {pct(menos, 0)} de los indicadores solos; "
+            f"mejor Calmar que {pct(mejor, 0)}"],
+         "09_dos_de_tres_vs_un_indicador.png", "Milca", 50),
+        ("Motor de backtest y optimización",
+         [f"Ejecución en t+1 al open · SL primero si SL y TP en la misma barra · comisión {pct(config.COMISION, 3)}/lado",
+          "Sin apalancamiento: Σ|w| ≤ 1 verificado en cada ejecución",
+          f"Optuna TPE, {opt['n_trials_por_estudio']} trials por estudio, objetivo Calmar, "
+          f"{opt['ventanas_rolling']} ventanas 6→1 meses",
+          f"{opt['configuraciones_evaluadas_train']:,} configuraciones evaluadas en TRAIN"],
+         "14a_optuna_historia.png", "Milca", 55),
+        ("WF-OOS vs. benchmarks y degradación (P2)",
+         [f"RP: CAGR {pct(rp['cagr'])}, MDD {pct(rp['mdd'])}, Calmar {num(rp['calmar'])} · exposición media "
+          f"{pct(rp['exposicion_media'])}",
           f"EW: Calmar {num(ew['calmar'])} · B&H: CAGR {pct(bh['cagr'])}, Calmar {num(bh['calmar'])}",
-          f"Exposición media {pct(rp['exposicion_media'])}: w = w^RP·s·m"],
-         "01_valor_portafolio.png", "Paula", 60),
-        ("Sensibilidad ±20%",
-         [f"Calmar base (θ congelado, TRAIN) {num(base_sens)}",
-          "Uno a la vez, a todos los activos y regímenes"],
+          f"P2 · CAGR WF-IS {pct(fila_roll['cagr_is_promedio'])} → WF-OOS {pct(fila_roll['cagr_oos'])}: "
+          f"WFE {num(fila_roll['wfe_rendimiento'])} → sobrevive ≈ {pct(max(fila_roll['wfe_rendimiento'], 0), 0)}",
+          f"WFE de Calmar {num(fila_roll['wfe_calmar'])} (< 0.5: lo in-sample es sobre todo ajuste)"],
+         "01_valor_portafolio.png", "Paula", 50),
+        ("P3 · Sensibilidad ±20%: ¿meseta o pico?",
+         [f"Calmar base (θ congelado, TRAIN) {num(rs['base'])} · rango {num(rs['calmar_min'], 3)} a {num(rs['calmar_max'], 3)}",
+          f"Conserva el signo en {pct(rs['frac_signo'], 0)} de los casos ±20%",
+          f"Dentro de ±50% de la base: {pct(rs['frac_cerca'], 0)}",
+          f"Parámetro más sensible: {rs['peor_param']} (rango de Calmar {num(rs['rango'].max())})",
+          f"Veredicto: {veredicto_sensibilidad(rs['frac_signo'], rs['frac_cerca'])}"],
          "04_sensibilidad.png", "Paula", 50),
-        ("¿A qué costo deja de ser rentable?",
+        ("P4 · ¿A qué costo deja de ser rentable?",
          [f"Equilibrio: {pct(costos['comision_equilibrio'], 3)} por lado",
-          f"Margen de seguridad {num(costos['margen_seguridad'])}× frente a 0.125%"],
+          f"Margen de seguridad {num(costos['margen_seguridad'])}× frente a 0.125%",
+          f"{num(costos['operaciones_por_anio'], 1)} operaciones/año · costo {pct(costos['costo_anual_pct_capital'], 2)} "
+          "del capital al año"],
          "05_curva_costos.png", "Paula", 45),
         ("Regímenes (K-means, K = 3)",
          [f"Features: {', '.join(reg['features_usadas'])} · silhouette {num(reg['silhouette_modelo_congelado'], 3)}",
           "Actualización semanal + persistencia de 2 actualizaciones",
-          "Duración promedio: " + ", ".join(f"{p['regimen']} {num(p['duracion_promedio_obs'], 0)} d" for p in reg['persistencia'])],
-         "06c_valor_con_regimenes.png", "Arturo", 55),
-        ("Risk Parity: la ilusión del 50/50",
-         [f"Con pesos iguales TSLA + NVDA = {pct(ilusion)} del riesgo",
-          "Spinu: convexo, solución única, RC_i/σ_p = 1/6 ± 1e-4"],
+          "Duración promedio: " + ", ".join(f"{p['regimen']} {num(p['duracion_promedio_obs'], 0)} d"
+                                            for p in reg['persistencia'])],
+         "06c_valor_con_regimenes.png", "Paula", 40),
+        ("P5 · ¿Difiere el desempeño entre regímenes?",
+         [linea_ic("WF-OOS", reg_oos)]
+         + ([linea_ic("TEST", reg_test)] if reg_test is not None else [])
+         + [f"{n_cero} de {n_ic} IC bootstrap incluyen 0 → "
+            + ("no hay diferencia significativa" if n_cero == n_ic else "diferencia solo en algunos regímenes"),
+            f"Aporte de la capa: control de riesgo (m = {'/'.join(str(m[k]) for k in sorted(m))}); vol. anual WF-OOS "
+            + " · ".join(f"{r} {pct(v)}" for r, v in vol_reg.items())],
+         "15_ic_por_regimen.png", "Arturo", 45),
+        ("P6 · Risk Parity vs. pesos iguales (+ rebalanceo)",
+         [f"WF-OOS · Calmar RP {num(rp['calmar'])} vs. EW {num(ew['calmar'])} vs. naive {num(naive['calmar'])}; "
+          f"MDD {pct(rp['mdd'])} vs. {pct(ew['mdd'])}"]
+         + rp_test
+         + [f"Riesgo: máx RC_i RP {pct(rp_cmp.loc['rp', 'rc_max'])} vs. EW {pct(rp_cmp.loc['ew', 'rc_max'])}; "
+            f"TSLA+NVDA {pct(rp_cmp.loc['rp', 'rc_tsla_nvda'])} vs. {pct(ilusion)}",
+            f"A costa de: CAGR WF-OOS {pct(rp['cagr'])} vs. {pct(ew['cagr'])}; más peso en {rp_pesos.idxmax()} "
+            f"({pct(rp_pesos.max())}), menos en {rp_pesos.idxmin()} ({pct(rp_pesos.min())})",
+            f"Rebalanceo elegido en TRAIN: {cong['rebalanceo']['frecuencia']}, δ = {cong['rebalanceo']['delta']}"],
          "07a_contribuciones_riesgo.png", "Arturo", 55),
-        ("Rebalanceo: banda + calendario",
-         [f"Elegido en TRAIN: {cong['rebalanceo']['frecuencia']}, δ = {cong['rebalanceo']['delta']}",
-          "Turnover contra el peso post-drift (no contra el objetivo viejo)"],
-         "07d_barrido_rebalanceo.png", "Arturo", 50),
         ("TEST: una sola vez",
          texto_test,
-         "01_valor_portafolio.png", "Arturo", 55),
+         "03_rendimientos_test.png", "Arturo", 45),
+        ("P7 · Tres limitaciones para capital real",
+         [f"1) Universo: 6 tech correlacionadas (corr. media {num(corr_reg['correlacion_media'].mean())}), elegidas ex post",
+          f"2) Pocas operaciones ({num(costos['operaciones_por_anio'], 1)}/año) y {n_cfg_total:,} configuraciones "
+          "probadas → Calmar con mucho error",
+          "3) Ejecución: llenado completo al open o en SL/TP, sin impacto ni préstamo de títulos",
+          "⚠ El backtest asume ejecución perfecta: los resultados son una cota optimista",
+          lim_test],
+         "11_costos_vs_bruto_test.png" if met_test is not None else None, "Arturo", 45),
     ]
 
 
@@ -849,9 +997,11 @@ def construir_presentacion_md(diapositivas, conclusiones):
     for k, (titulo, vinetas, figura, quien, segundos) in enumerate(diapositivas, 1):
         total += segundos
         lineas += [f"## {k}. {titulo} — {quien} ({segundos} s)", ""] + [f"- {v}" for v in vinetas] + \
-                  [f"- Figura: `docs/figures/{figura}`", ""]
+                  ([f"- Figura: `docs/figures/{figura}`"] if figura else []) + [""]
     lineas += ["## Cierre — los 3 (30 s)", ""] + [f"- {c}" for c in conclusiones] + ["",
-               f"Tiempo total de exposición: {total + 30} s ≈ {(total + 30) / 60:.1f} min (+ portada)."]
+               f"Tiempo total de exposición: {total + 30} s ≈ {(total + 30) / 60:.1f} min (+ portada).",
+               "Reparto: " + " · ".join(f"{q} {sum(d[4] for d in diapositivas if d[3] == q) + 10} s"
+                                        for q in config.ASIGNACION) + " (cierre de 30 s repartido entre los 3)."]
     return "\n".join(lineas)
 
 
@@ -866,17 +1016,23 @@ def presentacion_pdf(diapositivas, conclusiones, dir_fig, ruta_pdf):
         plt.close(fig)
         for k, (titulo, vinetas, figura, quien, _) in enumerate(diapositivas, 1):
             fig = plt.figure(figsize=(13.33, 7.5))
-            fig.text(0.04, 0.92, f"{k}. {titulo}", fontsize=28, weight="bold")
+            fig.text(0.04, 0.92, f"{k}. {titulo}", fontsize=26, weight="bold")
             fig.text(0.96, 0.93, quien, fontsize=14, ha="right", color="#52514e")
-            y = 0.82
+            ruta = dir_fig / figura if figura else None
+            imagen = plt.imread(ruta) if ruta is not None and ruta.exists() else None
+            # Figura poco ancha y mucho texto: texto a la izquierda y figura a la derecha
+            lineas = sum(len(textwrap.wrap(v, 100)) for v in vinetas)
+            dos_columnas = imagen is not None and imagen.shape[1] / imagen.shape[0] < 1.5 and lineas > 4
+            ancho_txt = 46 if dos_columnas else (100 if imagen is not None else 80)
+            tam = 15 if imagen is not None else 20
+            y = 0.84
             for v in vinetas:
-                fig.text(0.05, y, "• " + v, fontsize=17, va="top", wrap=True)
-                y -= 0.065
-            ruta = dir_fig / figura
-            if ruta.exists():
-                imagen = plt.imread(ruta)
-                alto = max(0.2, y - 0.03)
-                ax = fig.add_axes([0.05, 0.02, 0.9, alto])
+                partes = textwrap.wrap(v, ancho_txt)
+                fig.text(0.04, y, "• " + "\n   ".join(partes), fontsize=tam, va="top", linespacing=1.25)
+                y -= (0.047 if imagen is not None else 0.062) * len(partes) + 0.018
+            if imagen is not None:
+                caja = [0.49, 0.03, 0.49, 0.83] if dos_columnas else [0.04, 0.02, 0.92, max(0.25, y - 0.02)]
+                ax = fig.add_axes(caja)
                 ax.imshow(imagen)
                 ax.axis("off")
             pdf.savefig(fig)
@@ -885,8 +1041,9 @@ def presentacion_pdf(diapositivas, conclusiones, dir_fig, ruta_pdf):
         fig.text(0.04, 0.9, "Conclusiones", fontsize=30, weight="bold")
         y = 0.78
         for c in conclusiones:
-            fig.text(0.05, y, "• " + c, fontsize=18, va="top", wrap=True)
-            y -= 0.12
+            partes = textwrap.wrap(c, 85)
+            fig.text(0.05, y, "• " + "\n   ".join(partes), fontsize=19, va="top", linespacing=1.3)
+            y -= 0.065 * len(partes) + 0.05
         pdf.savefig(fig)
         plt.close(fig)
 
@@ -902,7 +1059,7 @@ def conclusiones_cortas(R):
     test = (f"TEST congelado: Calmar {num(met_test.set_index('nombre').loc['RP (sistema)', 'calmar'])}"
             if met_test is not None else f"TEST: {PENDIENTE}")
     return [f"WF-OOS: Calmar {num(rp['calmar'])} (EW {num(ew['calmar'])}), MDD {pct(rp['mdd'])}, exposición media {pct(rp['exposicion_media'])}",
-            f"WFE {num(fila['wfe_rendimiento'])}: {interpretar_wfe(fila['wfe_rendimiento'])}",
+            f"WFE {num(fila['wfe_rendimiento'])}: sobrevive ≈ {pct(max(fila['wfe_rendimiento'], 0), 0)} del rendimiento in-sample",
             f"Equilibrio de costos en {pct(costos['comision_equilibrio'], 3)} por lado (margen {num(costos['margen_seguridad'])}×)",
             test]
 
