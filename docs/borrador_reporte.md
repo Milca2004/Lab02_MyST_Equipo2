@@ -19,9 +19,9 @@ walk-forward 6→1 meses dentro de TRAIN (2015-01-02 a 2024-04-26).
   0.00 (rolling); anchored: -0.10 / -0.03.
 - **Costos:** el punto de equilibrio está en una comisión de 0.183% por lado
   (margen de seguridad 1.47× frente a 0.125%).
-- **TEST:** [PENDIENTE: test]
+- **TEST:** En TEST (2024-04-29 a 2026-08-31) el sistema congelado obtuvo CAGR 1.3%, MDD 8.7% y Calmar 0.14 (EW: Calmar 0.04; Buy & Hold: CAGR 28.2%, Calmar 0.98). Commit del test: `d39792990dc8d5951e6dbdead0d94dbc895ee3ca`.
 
-Conclusión: el sistema tiene Calmar WF-OOS positivo (0.04); con un CAGR (0.4%) muy inferior al Buy & Hold (44.6%) porque la exposición media es baja (9.9%); y una WFE de 0.02 < 0.5 indica que la mayor parte del desempeño in-sample es ajuste a la muestra, no una ventaja estable; el veredicto final depende del TEST [PENDIENTE: test].
+Conclusión: el sistema tiene Calmar WF-OOS positivo (0.04); con un CAGR (0.4%) muy inferior al Buy & Hold (44.6%) porque la exposición media es baja (9.9%); y una WFE de 0.02 < 0.5 indica que la mayor parte del desempeño in-sample es ajuste a la muestra, no una ventaja estable.
 
 ## 2. Datos y auditoría
 
@@ -111,7 +111,7 @@ Con exposición ≤ 100% el margen de cortos (50% inicial, 25–30% mantenimient
   invariante a la escala; lo fijan Risk Parity y m(régimen)).
 - **100 trials por estudio** (por ventana y activo: 1 global + 3 regímenes);
   95 ventanas rolling y 95 anchored.
-  **Configuraciones evaluadas en TRAIN: 416,300**.
+  **Configuraciones evaluadas en TRAIN: 416,300** (+52,800 en el walk-forward secundario sobre TEST; total 469,100).
   **Tiempo de optimización:** 0.30 h de reloj (etapa TRAIN completa; 1.84 h de CPU en 7 procesos).
 - Fallbacks a θ global (régimen con < 20 días o sin trials válidos), variante oficial: Crisis: 368 de 570; Reversión: 348 de 570; Tendencia: 332 de 570.
   Estudios globales sin ningún trial válido: anchored por_activo: 180 de 570 (180 heredan el θ de la última ventana válida, 0 usan el θ por defecto); rolling compartido: 44 de 95 (44 heredan el θ de la última ventana válida, 0 usan el θ por defecto); rolling por_activo: 169 de 570 (169 heredan el θ de la última ventana válida, 0 usan el θ por defecto).
@@ -160,9 +160,20 @@ Calmar 7.80 (detalle en `wf_is_por_ventana.csv`).
 
 ### TEST
 
-[PENDIENTE: test]
+| Estrategia | Ret. total | CAGR | Vol. | Sharpe | Sortino | MDD | Calmar | # ops | # largas | # cortas | Win rate | PF | Exp. media |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| RP (sistema) | 3.0% | 1.3% | 6.6% | 0.22 | 0.30 | 8.7% | 0.14 | 124 | 95 | 29 | 50.8% | 1.11 | 18.1% |
+| RP naive | 3.6% | 1.5% | 6.5% | 0.27 | 0.35 | 8.1% | 0.19 | 124 | 95 | 29 | 50.8% | 1.13 | 18.1% |
+| Pesos iguales (EW) | 0.9% | 0.4% | 7.3% | 0.09 | 0.12 | 9.9% | 0.04 | 124 | 95 | 29 | 50.8% | 1.05 | 18.9% |
+| Buy & Hold EW | 78.2% | 28.2% | 29.0% | 1.00 | 1.48 | 28.8% | 0.98 | n/d | n/d | n/d | n/d | n/d | n/d |
+| NVDA (estrategia sola) | 18.6% | 7.6% | 20.5% | 0.46 | 0.65 | 24.4% | 0.31 | 24 | 22 | 2 | 54.2% | 1.29 | 25.7% |
+| AMZN (estrategia sola) | -4.5% | -1.9% | 15.0% | -0.06 | -0.07 | 19.7% | -0.10 | 25 | 14 | 11 | 60.0% | 0.94 | 29.6% |
+| TSLA (estrategia sola) | -29.5% | -14.0% | 26.3% | -0.44 | -0.61 | 45.5% | -0.31 | 27 | 19 | 8 | 44.4% | 0.68 | 33.3% |
+| META (estrategia sola) | -7.5% | -3.3% | 15.2% | -0.14 | -0.20 | 31.3% | -0.11 | 24 | 16 | 8 | 29.2% | 0.87 | 23.5% |
+| NFLX (estrategia sola) | 34.0% | 13.4% | 14.9% | 0.92 | 1.72 | 8.3% | 1.62 | 14 | 12 | 2 | 78.6% | 3.81 | 18.9% |
+| GOOGL (estrategia sola) | 34.7% | 13.7% | 10.4% | 1.28 | 2.20 | 9.3% | 1.48 | 19 | 16 | 3 | 52.6% | 2.71 | 13.4% |
 
-
+![Rendimientos TEST](figures/03_rendimientos_test.png)
 
 ## 7. Análisis de régimen
 
@@ -191,7 +202,13 @@ Persistencia en WF-OOS (TRAIN):
 | Reversión | 37.8% | 10 | 74.3 | 74.3 |
 | Crisis | 33.8% | 8 | 83.1 | 83.1 |
 
-Persistencia en TEST: [PENDIENTE: test]
+Persistencia en TEST (modelo congelado):
+
+| Régimen | % del tiempo | # rachas | Duración obs. (días) | E[D] Markov (días) |
+|---|---|---|---|---|
+| Tendencia | 49.4% | 6 | 48.3 | 48.3 |
+| Reversión | 37.8% | 7 | 31.7 | 36.8 |
+| Crisis | 12.8% | 1 | 75.0 | 75.0 |
 
 Transiciones en WF-OOS: 28; posiciones abiertas al momento de una
 transición: 34; cierres por entrada a Crisis:
@@ -396,7 +413,7 @@ anual por turnover: 0.909% del capital.
 2. **¿Cuánto se degrada el desempeño de train a test? ¿Qué proporción sobrevive?** WFE de rendimiento
    0.02 y de Calmar 0.00 (rolling): CAGR WF-IS promedio
    14.1% vs. WF-OOS 0.3%. Sobrevive alrededor de 2% del rendimiento in-sample: por debajo de 0.5, el resultado in-sample es mayormente ruido ajustado.
-   Degradación TRAIN → TEST: [PENDIENTE: test].
+   Del WF-OOS al TEST el Calmar pasó de 0.04 a 0.14 y el CAGR de 0.4% a 1.3%.
 3. **¿Qué tan sensible es a ±20%? ¿Meseta o pico?** Calmar base 0.13; el parámetro más
    sensible es max_hold. Con ±20% el Calmar conserva el signo en 90% de los casos
    y solo 80% queda dentro de ±50% de la base (rango -0.00 a 0.26).
@@ -418,7 +435,7 @@ anual por turnover: 0.909% del capital.
    correlacionadas (correlación media 0.47) elegidas *ex post*
    (supervivencia): la diversificación es limitada y el régimen de Crisis afecta a todos a la vez;
    (ii) pocas operaciones por ventana (36.6 por año en todo el portafolio)
-   → Calmar con mucho error de estimación y riesgo de minería de datos (416,300 configuraciones
+   → Calmar con mucho error de estimación y riesgo de minería de datos (469,100 configuraciones
    probadas); (iii) ejecución idealizada: llenado completo al open/al nivel de SL/TP, sin impacto,
    sin restricciones de préstamo de títulos ni margin calls intradía.
 
@@ -440,4 +457,7 @@ Barrido de slippage (por lado): CAGR de 1.5% (0 bps) a -0.2%
 
 ## Anexo: evaluación secundaria del TEST
 
-[PENDIENTE: test]
+| Evaluación | CAGR | MDD | Calmar |
+|---|---|---|---|
+| congelado (oficial) | 1.3% | 8.7% | 0.14 |
+| walk-forward re-optimizado (secundario) | 2.4% | 9.9% | 0.24 |

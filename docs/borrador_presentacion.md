@@ -79,8 +79,9 @@
 
 ## 12. TEST: una sola vez — Arturo (55 s)
 
-- [PENDIENTE: test]
-- Se toca UNA sola vez con θ congelado y candado (hash + commit)
+- Sistema congelado: CAGR 1.3%, MDD 8.7%, Calmar 0.14
+- Buy & Hold: CAGR 28.2%, Calmar 0.98
+- Se tocó UNA vez, con candado (hash de θ + commit)
 - Figura: `docs/figures/01_valor_portafolio.png`
 
 ## Cierre — los 3 (30 s)
@@ -88,6 +89,6 @@
 - WF-OOS: Calmar 0.04 (EW 0.08), MDD 10.8%, exposición media 9.9%
 - WFE 0.02: Sobrevive alrededor de 2% del rendimiento in-sample: por debajo de 0.5, el resultado in-sample es mayormente ruido ajustado.
 - Equilibrio de costos en 0.183% por lado (margen 1.47×)
-- TEST: [PENDIENTE: test]
+- TEST congelado: Calmar 0.14
 
 Tiempo total de exposición: 665 s ≈ 11.1 min (+ portada).
