@@ -112,7 +112,7 @@ Con exposición ≤ 100% el margen de cortos (50% inicial, 25–30% mantenimient
 - **100 trials por estudio** (por ventana y activo: 1 global + 3 regímenes);
   95 ventanas rolling y 95 anchored.
   **Configuraciones evaluadas en TRAIN: 416,300**.
-  **Tiempo de optimización:** 0.44 h de reloj (etapa TRAIN completa; 2.78 h de CPU en 7 procesos).
+  **Tiempo de optimización:** 0.30 h de reloj (etapa TRAIN completa; 1.84 h de CPU en 7 procesos).
 - Fallbacks a θ global (régimen con < 20 días o sin trials válidos), variante oficial: Crisis: 368 de 570; Reversión: 348 de 570; Tendencia: 332 de 570.
   Estudios globales sin ningún trial válido: anchored por_activo: 180 de 570 (180 heredan el θ de la última ventana válida, 0 usan el θ por defecto); rolling compartido: 44 de 95 (44 heredan el θ de la última ventana válida, 0 usan el θ por defecto); rolling por_activo: 169 de 570 (169 heredan el θ de la última ventana válida, 0 usan el θ por defecto).
   Que tantas ventanas de 6 meses no alcancen el mínimo de operaciones es en sí un resultado: con
@@ -364,7 +364,7 @@ anual por turnover: 0.909% del capital.
 
 ## 12. Supuestos y decisiones
 
-- Periodo 2015-01-01 a 2026-08-31 (no hizo falta reducirlo: la etapa TRAIN completa tomó 0.44 h).
+- Periodo 2015-01-01 a 2026-08-31 (no hizo falta reducirlo: la etapa TRAIN completa tomó 0.30 h).
 - La regla 2 de 3 nunca abre contra la tendencia de la EMA (ver sección 3).
 - N_MIN = 5 (global) / 3 (régimen) en lugar de 10/5 (ver sección 5); compartido: 6× esos valores.
 - Fallback declarado: régimen con < 20 días en el train o sin trials válidos → θ global de la ventana;
