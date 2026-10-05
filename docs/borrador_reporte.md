@@ -130,7 +130,11 @@ Diagnóstico de Optuna (NVDA, última ventana de TRAIN 2023-11-01 a 2024-04-26):
 ![Historia](figures/14a_optuna_historia.png)
 ![Importancia](figures/14b_optuna_importancia.png)
 ![Slices](figures/14c_optuna_slices.png)
-![Superficie 3D](figures/14d_optuna_superficie_3d.png)
+Corte rsi_window × m_tp (resto de θ fijo en el θ robusto):
+12 de 144 puntos de la malla alcanzan N_MIN operaciones; como no
+forman una superficie, se muestran como mapa 2D (color = operaciones, número = Calmar del punto válido).
+
+![Corte de la superficie del Calmar](figures/14d_optuna_superficie_3d.png)
 
 ## 6. Métricas por conjunto
 
@@ -153,6 +157,57 @@ Diagnóstico de Optuna (NVDA, última ventana de TRAIN 2023-11-01 a 2024-04-26):
 ![Drawdown](figures/02_drawdown.png)
 ![Rendimientos WF-OOS](figures/03_rendimientos_wf_oos.png)
 
+Rendimientos anuales — WF-OOS (2016-07-01 a 2024-04-26; el año o trimestre que corta esas fechas está incompleto):
+
+| Año | RP (sistema) | Pesos iguales (EW) | Buy & Hold EW |
+|---|---|---|---|
+| 2016 | -0.4% | -0.0% | 28.3% |
+| 2017 | 8.5% | 8.9% | 58.4% |
+| 2018 | -1.2% | 0.7% | -2.7% |
+| 2019 | -2.1% | -2.7% | 39.6% |
+| 2020 | -1.7% | -0.4% | 159.2% |
+| 2021 | 4.7% | 5.9% | 59.0% |
+| 2022 | -5.8% | -6.3% | -55.7% |
+| 2023 | 2.3% | 1.8% | 153.0% |
+| 2024 | -0.4% | -0.6% | 39.4% |
+
+Rendimientos trimestrales — WF-OOS:
+
+| Trimestre | RP (sistema) | Pesos iguales (EW) | Buy & Hold EW |
+|---|---|---|---|
+| 2016-T3 | 0.0% | -0.0% | 13.8% |
+| 2016-T4 | -0.4% | -0.0% | 12.7% |
+| 2017-T1 | 0.3% | 0.4% | 14.4% |
+| 2017-T2 | 1.7% | 1.8% | 16.8% |
+| 2017-T3 | 4.5% | 5.1% | 11.5% |
+| 2017-T4 | 1.7% | 1.5% | 6.4% |
+| 2018-T1 | -2.0% | -0.5% | 15.4% |
+| 2018-T2 | -1.6% | -1.7% | 16.0% |
+| 2018-T3 | 3.0% | 3.7% | 4.0% |
+| 2018-T4 | -0.5% | -0.7% | -30.1% |
+| 2019-T1 | -0.3% | -0.2% | 21.3% |
+| 2019-T2 | 0.4% | -0.3% | -1.6% |
+| 2019-T3 | -1.9% | -1.9% | -6.3% |
+| 2019-T4 | -0.2% | -0.3% | 24.8% |
+| 2020-T1 | -5.3% | -5.2% | 7.3% |
+| 2020-T2 | 1.1% | 1.9% | 44.8% |
+| 2020-T3 | 2.7% | 3.1% | 38.5% |
+| 2020-T4 | 0.0% | 0.0% | 20.4% |
+| 2021-T1 | -0.6% | -0.9% | -1.1% |
+| 2021-T2 | 1.6% | 1.4% | 17.7% |
+| 2021-T3 | -0.5% | 0.2% | 7.6% |
+| 2021-T4 | 4.2% | 5.2% | 26.9% |
+| 2022-T1 | -4.9% | -5.2% | -7.2% |
+| 2022-T2 | 0.2% | 0.2% | -39.6% |
+| 2022-T3 | -0.5% | -0.5% | 1.5% |
+| 2022-T4 | -0.6% | -0.8% | -22.1% |
+| 2023-T1 | 1.0% | 1.0% | 64.9% |
+| 2023-T2 | -0.6% | -0.7% | 38.5% |
+| 2023-T3 | -0.1% | -0.2% | -0.2% |
+| 2023-T4 | 2.0% | 1.6% | 11.0% |
+| 2024-T1 | 1.1% | 0.8% | 43.6% |
+| 2024-T2 | -1.4% | -1.4% | -2.9% |
+
 ### WF-IS
 
 Promedio por ventana (portafolio sobre su propio train, θ_k in-sample): CAGR 14.1%,
@@ -174,6 +229,29 @@ Calmar 7.80 (detalle en `wf_is_por_ventana.csv`).
 | GOOGL (estrategia sola) | 34.7% | 13.7% | 10.4% | 1.28 | 2.20 | 9.3% | 1.48 | 19 | 16 | 3 | 52.6% | 2.71 | 13.4% |
 
 ![Rendimientos TEST](figures/03_rendimientos_test.png)
+
+Rendimientos anuales — TEST (2024-04-29 a 2026-08-31; el año o trimestre que corta esas fechas está incompleto):
+
+| Año | RP (sistema) | Pesos iguales (EW) | Buy & Hold EW |
+|---|---|---|---|
+| 2024 | 3.3% | 3.0% | 49.1% |
+| 2025 | -0.5% | -1.6% | 21.3% |
+| 2026 | 0.2% | -0.4% | -1.5% |
+
+Rendimientos trimestrales — TEST:
+
+| Trimestre | RP (sistema) | Pesos iguales (EW) | Buy & Hold EW |
+|---|---|---|---|
+| 2024-T2 | 0.8% | 0.9% | 16.1% |
+| 2024-T3 | -3.6% | -3.9% | 5.7% |
+| 2024-T4 | 6.3% | 6.3% | 21.5% |
+| 2025-T1 | -4.0% | -5.6% | -15.4% |
+| 2025-T2 | 1.0% | 0.8% | 30.0% |
+| 2025-T3 | 1.3% | 1.7% | 11.6% |
+| 2025-T4 | 1.3% | 1.7% | -1.2% |
+| 2026-T1 | -1.0% | -1.2% | -9.1% |
+| 2026-T2 | -1.3% | -1.4% | 6.9% |
+| 2026-T3 | 2.4% | 2.2% | 1.4% |
 
 ## 7. Análisis de régimen
 
@@ -230,6 +308,8 @@ Desempeño diario del sistema por régimen (IC 95% bootstrap, 1000 remuestreos):
 | Buy & Hold EW | Tendencia | 559 | 0.269% | 0.093% | 0.459% | 35.7% | 1.90 | 25.7% |
 | Buy & Hold EW | Reversión | 743 | 0.119% | -0.004% | 0.241% | 26.9% | 1.12 | 46.4% |
 | Buy & Hold EW | Crisis | 665 | 0.152% | -0.064% | 0.372% | 45.7% | 0.84 | 49.3% |
+
+![IC por régimen](figures/15_ic_por_regimen.png)
 
 Correlación promedio entre pares por régimen: Tendencia 0.43, Reversión 0.43, Crisis 0.56.
 
@@ -416,7 +496,7 @@ anual por turnover: 0.909% del capital.
    Del WF-OOS al TEST el Calmar pasó de 0.04 a 0.14 y el CAGR de 0.4% a 1.3%.
 3. **¿Qué tan sensible es a ±20%? ¿Meseta o pico?** Calmar base 0.13; el parámetro más
    sensible es max_hold. Con ±20% el Calmar conserva el signo en 90% de los casos
-   y solo 80% queda dentro de ±50% de la base (rango -0.00 a 0.26).
+   y 80% queda dentro de ±50% de la base (rango -0.00 a 0.26).
    La mayoría de las perturbaciones conserva el resultado: se parece más a una meseta.
 4. **¿A qué costo deja de ser rentable?** A 0.183% por lado; margen de seguridad 1.47× frente a 0.125%.
    En el escenario realista (spread 2 bps, borrow 0.5%, impacto) el CAGR pasa de
@@ -431,6 +511,7 @@ anual por turnover: 0.909% del capital.
    1.86% en pesos promedio: con correlaciones parecidas, naive ≈ Spinu. RP sí iguala
    las contribuciones al riesgo (su objetivo), pero como la exposición media es ~10% y las señales
    dominan el P&L, el reparto de pesos casi no mueve el Calmar.
+   **En TEST:** RP Calmar 0.14 vs. EW 0.04 vs. RP naive 0.19; MDD 8.7% vs. 9.9% vs. 8.1%; volatilidad 6.6% vs. 7.3% vs. 6.5%; CAGR 1.3% vs. 0.4% vs. 1.5%. RP mejora el Calmar frente a pesos iguales en TEST, aunque RP naive queda por encima de Spinu. El orden por Calmar cambia de WF-OOS (EW > RP > naive) a TEST (naive > RP > EW): con tan pocas operaciones, la diferencia entre esquemas de pesos no es robusta.
 7. **Tres limitaciones para operar con capital real:** (i) universo de 6 mega-cap tecnológicas muy
    correlacionadas (correlación media 0.47) elegidas *ex post*
    (supervivencia): la diversificación es limitada y el régimen de Crisis afecta a todos a la vez;
