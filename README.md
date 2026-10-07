@@ -100,4 +100,4 @@ Miércoles 7 de octubre de 2026. El último commit válido es a las 23:59 del ma
 
 El código, las pruebas, el notebook y los borradores del reporte y la presentación se generaron
 con asistencia de IA (Claude Code, Anthropic), a partir de un prompt de especificación escrito por
-el equipo. Cada integrante revisó línea por línea los módulos de la tabla de arriba, los commiteó desde su propia cuenta (en algunos commits Claude aparece como coautor) y es responsable de poder explicarlos. Todas las cifras del reporte y la presentación se leen de `docs/resultados/`, generado por `python main.py`; ninguna se escribió a mano.
+el equipo. Cada integrante revisó línea por línea los módulos de la tabla de arriba, los commiteó desde su propia cuenta (en algunos commits Claude aparece como coautor) y es responsable de poder explicarlos. Todas las cifras del reporte y la presentación se leen de `docs/resultados/`.
